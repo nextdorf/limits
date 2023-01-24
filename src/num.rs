@@ -1,5 +1,3 @@
-// pub mod bigint;
-
 #[const_trait]
 pub trait Zero {
   fn zero() -> Self;
@@ -9,6 +7,9 @@ pub trait Zero {
 pub trait One {
   fn one() -> Self;
 }
+
+#[const_trait]
+pub trait MulCommute { }
 
 
 impl const Zero for usize { fn zero() -> Self { 0 } }
@@ -42,18 +43,21 @@ impl const One for i128 { fn one() -> Self { 1 } }
 impl const One for f32 { fn one() -> Self { 1. } }
 impl const One for f64 { fn one() -> Self { 1. } }
 
+impl const MulCommute for usize {}
+impl const MulCommute for u8 {}
+impl const MulCommute for u16 {}
+impl const MulCommute for u32 {}
+impl const MulCommute for u64 {}
+impl const MulCommute for u128 {}
+impl const MulCommute for isize {}
+impl const MulCommute for i8 {}
+impl const MulCommute for i16 {}
+impl const MulCommute for i32 {}
+impl const MulCommute for i64 {}
+impl const MulCommute for i128 {}
+impl const MulCommute for f32 {}
+impl const MulCommute for f64 {}
 
-impl<T: ~const Zero + Copy, const N: usize> const Zero for [T; N] {
-  fn zero() -> Self {
-    [T::zero(); N]
-  }
-}
-
-impl<T: ~const One + Copy, const N: usize> const One for [T; N] {
-  fn one() -> Self {
-    [T::one(); N]
-  }
-}
 
 
 

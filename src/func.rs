@@ -1,45 +1,59 @@
-pub mod f64;
-pub mod ops;
-mod func_impl;
-mod blankets;
+pub mod cst;
+pub mod id;
 
-use std::ops::{AddAssign, MulAssign};
+use std::ops::Mul;
 
-pub use blankets::*;
-pub use func_impl::*;
-
-use crate::num::Zero;
+use crate::num::{One, Zero};
 
 
 pub trait Index { }
 
-// T: ~const AddAssign + ~const MulAssign + Copy + ~const Zero
 #[const_trait]
 pub trait MultiVar: Clone {
   type I: Index;
-  type X: AddAssign<Self::X> + MulAssign<Self::X> + Copy + Zero;
-  type Mapped<Y>: MultiVar<I = Self::I, X = Y> where Y: AddAssign + MulAssign + Copy + Zero;
+  type X;
+  type Mapped<Y>: MultiVar<I = Self::I, X = Y> where Y: Copy;
 
-  fn get_idx(&self, args: Self::I) -> Self::X;
+  fn get_idx(&self, arg: Self::I) -> Self::X;
 
-  fn trace_idxs(self) -> Self::X;
-
-  fn mult_idxs(self, rhs: Self) -> Self;
-
-  // fn mult_many(self, rhs: impl ~const IntoIterator<Item = Self>) -> Self {
-  //   let mut res = self;
-  //   for r in rhs {
-  //     res = res.mult(r);
-  //   }
-  //   res
-  // }
-
-  fn dot_idxs(self, rhs: Self) -> Self::X {
-    self.mult_idxs(rhs).trace_idxs()
-  }
-
-  fn map<Y>(self, map_fn: fn(Self::X) -> Y) -> Self::Mapped<Y> where Y: AddAssign + MulAssign + Copy + Zero;
+  // fn map<Y: Copy>(self, map_fn: fn(Self::X) -> Y) -> Self::Mapped<Y>;
+  fn map<Y: Copy>(self, map_fn: &impl Fn(Self::X) -> Y) -> Self::Mapped<Y>;
 }
+
+#[const_trait]
+pub trait TracableMultiVar: MultiVar {
+  fn trace_idxs(self) -> Self::X;
+}
+
+#[const_trait]
+pub trait DualMultiVar: MultiVar {
+  type Dual: DualMultiVar<Dual = Self, X = Self::X>;
+
+  fn dot_idxs(self, rhs: Self::Dual) -> Self::X;
+}
+
+#[const_trait]
+pub trait MultiVarFromIndex: MultiVar {
+  fn new_from_index(init_fn: &impl Fn(Self::I) -> Self::X) -> Self;
+}
+
+#[const_trait]
+pub trait NormedSpace: DualMultiVar where Self::Dual: ~const NormedSpace {
+  fn unit_vector(i: Self::I) -> Self;
+  fn unit_dual_vector(i: <Self::Dual as MultiVar>::I) -> Self::Dual {
+    <Self::Dual as NormedSpace>::unit_vector(i)
+  }
+}
+
+
+/// Function X -> Y
+#[const_trait]
+pub trait Fct {
+  type X;
+  type Y;
+  fn eval_fct(&self, x: Self::X) -> Self::Y;
+}  
+
 
 /// Differentiable function \
 /// F = F: (x1_I, x2_I, ..)_J ↦ Y \
@@ -55,12 +69,45 @@ pub trait Diffable: Fct<X = Self::Args> {
 }
 
 
-/// Function X -> Y
-#[const_trait]
-pub trait Fct {
-  type X;
-  type Y;
-  fn eval_fct(&self, x: Self::X) -> Self::Y;
+pub struct Dim<const N: usize>(pub usize);
+
+impl<const N: usize> Index for Dim<N> { }
+
+
+#[derive(Debug, Clone, Copy)]
+pub struct Var<X>(pub X);
+
+impl Index for () {}
+
+impl<X> const MultiVar for Var<X> where X: Copy {
+  type I = ();
+  type X = X;
+  type Mapped<Y> = Var<Y> where Y: Copy;
+
+  fn get_idx(&self, _: Self::I) -> Self::X {
+    self.0
+  }
+
+  fn map<Y: Copy>(self, map_fn: &impl ~const Fn(Self::X) -> Y) -> Self::Mapped<Y> {
+    Var(map_fn(self.0))
+  }
+}
+impl<X> const TracableMultiVar for Var<X> where X: Copy {
+  fn trace_idxs(self) -> Self::X {
+    self.0
+  }
+}
+impl<X> const DualMultiVar for Var<X> where X: ~const Mul<Output = X> + Copy {
+  type Dual = Self;
+
+  fn dot_idxs(self, rhs: Self::Dual) -> Self::X {
+    self.0 * rhs.0
+  }
+}
+impl<X> const NormedSpace for Var<X> where X: ~const Mul<Output = X> + ~const One + Copy {
+  fn unit_vector(_: Self::I) -> Self {
+    Self(X::one())
+  }
 }
 
 
@@ -73,7 +120,7 @@ impl<G: ~const Fct<X = Y>, Y, F: ~const Fct<Y = Y>> const Fct for FctComp<G, Y, 
 
   fn eval_fct(&self, x: Self::X) -> Self::Y {
     self.0.eval_fct(self.1.eval_fct(x))
-  }
-}
+  }  
+}  
 
 

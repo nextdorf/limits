@@ -1,9 +1,9 @@
-// use limits::func::ops;
+use limits::{self, ops::Sum, func::{Fct, cst::CstFct, Var, Diffable}};
 
 fn main() {
-  const q: [i32; 0] = [];
-  const qq: &[i32] = &[1,2,3,4];
-  let summands = [0i32,1,2,3,4,5];
-  // let sum = ops::Sum(summands);
-  // println!("{:?}", sum);
+  let s = Sum([1,2,3,4]);
+  let fn_100 = CstFct(100);
+  assert_eq!(100, fn_100.eval_fct(Var(Var(()))));
+  let dfn_100 = fn_100.diff_fct(()).0;
+  assert_eq!(0, dfn_100.eval_fct(Var(Var(()))));
 }
