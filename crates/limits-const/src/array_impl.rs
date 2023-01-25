@@ -1,6 +1,6 @@
 use std::ops::{AddAssign, Mul, MulAssign};
 
-use crate::{ops::{BinOp, Sum, Prod}, func::{Dim, Fct, MultiVar, TracableMultiVar, DualMultiVar, Diffable, MultiVarFromIndex}, num::{Zero, One, MulCommute}};
+use crate::{ops::{BinOp, Sum, Prod}, func::{Dim, Fct, MultiVar, TracableMultiVar, DualMultiVar, Diffable, MultiVarFromIndex, square_norm_default_impl}, num::{Zero, One, MulCommute}};
 
 impl<const N: usize, X: Copy + ~const AddAssign + ~const Zero> const BinOp for Sum<[X; N]> {
   type I = Dim<N>;
@@ -137,6 +137,18 @@ impl<X, const N: usize> const DualMultiVar for [X; N] where X: Copy + ~const Mul
       i+=1;
     }
     res
+  }
+
+  fn as_dual(self) -> Self {
+    self
+  }
+
+  fn dual_index(i: Dim<N>) -> Dim<N> {
+    i
+  }
+
+  fn square_norm(self) -> Self::X {
+    square_norm_default_impl(self)
   }
 }
 

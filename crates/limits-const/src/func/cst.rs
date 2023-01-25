@@ -24,9 +24,20 @@ impl<X> const Diffable for CstFct<X> where X: Copy + ~const Zero {
   type XVar = Var<()>;
   type DFct = CstFct<X>;
   type DF = Var<Self::DFct>;
-
+  
   fn diff_fct(&self, _: ()) -> Var<CstFct<X>> {
     Var(CstFct(X::zero()))
+  }
+}
+
+impl<X: Copy> CstFct<X> {
+  pub const fn eval_fct(&self) -> X {
+    Fct::eval_fct(self, Var(Var(())))
+  }
+}
+impl<X: Copy + ~const Zero> CstFct<X> {
+  pub const fn diff_fct(&self) -> CstFct<X> {
+    Diffable::diff_fct(self, ()).0
   }
 }
 

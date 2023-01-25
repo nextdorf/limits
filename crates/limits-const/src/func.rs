@@ -30,7 +30,16 @@ pub trait DualMultiVar: MultiVar {
   type Dual: DualMultiVar<Dual = Self, X = Self::X>;
 
   fn dot_idxs(self, rhs: Self::Dual) -> Self::X;
+  fn as_dual(self) -> Self::Dual;
+  fn dual_index(i: Self::I) -> <Self::Dual as MultiVar>::I;
+  fn square_norm(self) -> Self::X;
 }
+
+pub const fn square_norm_default_impl<Xs>(x: Xs) -> Xs::X where Xs: ~const DualMultiVar + Copy {
+  let x_dual: Xs::Dual = x.as_dual();
+  x.dot_idxs(x_dual)
+}
+
 
 #[const_trait]
 pub trait MultiVarFromIndex: MultiVar {
@@ -44,6 +53,15 @@ pub trait NormedSpace: DualMultiVar where Self::Dual: ~const NormedSpace {
     <Self::Dual as NormedSpace>::unit_vector(i)
   }
 }
+
+pub const fn as_dual_form<Xs>(x: Xs) -> Xs::Dual where
+  Xs: ~const DualMultiVar + Copy, Xs::Dual: ~const MultiVarFromIndex
+{
+  <Xs::Dual as MultiVarFromIndex>::new_from_index(&|i| {
+    x.get_idx(Xs::Dual::dual_index(i))
+  })
+}
+
 
 
 /// Function X -> Y
@@ -84,24 +102,36 @@ impl<X> const MultiVar for Var<X> where X: Copy {
   type X = X;
   type Mapped<Y> = Var<Y> where Y: Copy;
 
-  fn get_idx(&self, _: Self::I) -> Self::X {
+  fn get_idx(&self, _: ()) -> X {
     self.0
   }
 
-  fn map<Y: Copy>(self, map_fn: &impl ~const Fn(Self::X) -> Y) -> Self::Mapped<Y> {
+  fn map<Y: Copy>(self, map_fn: &impl ~const Fn(X) -> Y) -> Self::Mapped<Y> {
     Var(map_fn(self.0))
   }
 }
 impl<X> const TracableMultiVar for Var<X> where X: Copy {
-  fn trace_idxs(self) -> Self::X {
+  fn trace_idxs(self) -> X {
     self.0
   }
 }
 impl<X> const DualMultiVar for Var<X> where X: ~const Mul<Output = X> + Copy {
   type Dual = Self;
 
-  fn dot_idxs(self, rhs: Self::Dual) -> Self::X {
+  fn dot_idxs(self, rhs: Self) -> X {
     self.0 * rhs.0
+  }
+
+  fn as_dual(self) -> Self {
+    self
+  }
+
+  fn dual_index(_: ()) {
+    ()
+  }
+
+  fn square_norm(self) -> Self::X {
+    square_norm_default_impl(self)
   }
 }
 impl<X> const NormedSpace for Var<X> where X: ~const Mul<Output = X> + ~const One + Copy {
