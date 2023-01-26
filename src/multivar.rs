@@ -4,14 +4,15 @@ pub trait MultiVar {
   type I: Index;
   type X;
 
-  fn elem_at_index(&self, i: Self::I) -> &Self::X;
+  // fn elem_at_index(&self, i: Self::I) -> &Self::X;
+  fn elem_at_index(&self, i: Self::I) -> Self::X;
 }
 
 pub trait DualMultiVar<Dual>: MultiVar {
   type DualI;
 
   fn dot(&self, dual: &Dual) -> Self::X;
-  fn as_dual(self) -> Dual;
+  fn try_as_dual(&self) -> Option<Dual>;
 }
 
 pub trait SelfDualMultiVar: MultiVar {
@@ -26,8 +27,8 @@ impl<V> DualMultiVar<Self> for V where V: SelfDualMultiVar {
     self.square_norm(dual)
   }
 
-  fn as_dual(self) -> Self {
-    self
+  fn try_as_dual(&self) -> Option<Self> {
+    Some(*self)
   }
 
 }

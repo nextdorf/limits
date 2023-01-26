@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{multivar::{MultiVar, Index}, func::Fct, num::{Zero, One}};
+use crate::{multivar::{MultiVar, Index, DualMultiVar}, func::Fct, num::{Zero, One}};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UnitVec<I>(pub I);
@@ -35,12 +35,26 @@ impl<I> UnitVec<I> where I: Index + PartialEq {
 }
 
 
-impl<I, X> MultiVar for (UnitVec<I>, X, X, PhantomData<X>) where I: Index + PartialEq, X: Zero + One {
+impl<I, X> MultiVar for (UnitVec<I>, PhantomData<X>) where I: Index + PartialEq, X: Zero + One {
   type I = I;
   type X = X;
 
-  fn elem_at_index(&self, i: I) -> &X {
-    self.0.if_eq_idx_then_fst_else_snd(i, &self.1, &self.2)
+  fn elem_at_index(&self, i: I) -> X {
+    self.0.eval_fct(i)
   }
 }
+
+
+// impl<Xs> DualMultiVar<UnitVec<Xs::I>> for Xs where Xs: MultiVar {
+//   type DualI = Xs::I;
+
+//   fn dot(&self, _: &DIdFct<Var<X>>) -> Xs::X {
+//     self.0.clone()
+//   }
+
+//   fn try_as_dual(&self) -> DIdFct<Var<X>> {
+//     DIdFct(PhantomData)
+//   }
+// }
+
 
