@@ -17,12 +17,21 @@ pub trait DualIndex: Index {
 pub trait SelfDualIndex: Index { }
 
 
+/// Representation for a tensor index. Every tensor is assumed to own an element implementing
+/// this trait and it specifies how many indecees the tensor has and which ones are raised and which
+/// one are lowered
 pub trait TensorIndexRepr: Clone {
+  /// Lower the ith index. If `Index != CoIndex` the index will be a covariant index afterwards
   fn lower(self, i: usize) -> Self;
+  /// Raise the ith index. If `Index != CoIndex` the index will be a contravariant index afterwards
   fn raise(self, i: usize) -> Self;
+  /// `(M, N)` for an (M, N)-Tensor
   fn rank(&self) -> (usize, usize);
+  /// `M` for an (M, N)-Tensor
   fn contravariant_rank(&self) -> usize { self.rank().0 }
+  /// `N` for an (M, N)-Tensor
   fn covariant_rank(&self) -> usize { self.rank().1 }
+  /// `M + N` for an (M, N)-Tensor
   fn order(&self) -> usize {
     let (a, b) = self.rank();
     a + b
@@ -31,14 +40,20 @@ pub trait TensorIndexRepr: Clone {
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Represents the sum type `Index (+) CoIndex`
 pub enum TensorIndexVariant<I: DualIndex> {
+  /// Contravariant Index
   Contra(I),
+  /// Covariant Index
   Co(I::CoIndex),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Distinguishes between a contravariant and a covariant index
 pub enum TensorIndexVariantKind {
+  /// Contravariant Index
   Contra,
+  /// Covariant Index
   Co,
 }
 
