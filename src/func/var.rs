@@ -1,6 +1,5 @@
 use crate::{multivar::{MultiVar, Index}, num::Zero};
 
-use super::Fct;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Var<X>(pub X);
@@ -8,16 +7,7 @@ pub struct Var<X>(pub X);
 impl Index for () {}
 
 
-// impl<F> Fct for F where F: Fct {
-//   type X = Var<F::X>;
-//   type Y = F::Y;
-
-//   fn eval_fct(&self, x: Var<F::X>) -> F::Y {
-//     self.eval_fct(x.0)
-//   }
-// }
-
-impl<X> MultiVar for Var<X> {
+impl<X> MultiVar for Var<X> where X: Clone {
   type I = ();
   type X = X;
 
@@ -32,9 +22,9 @@ impl<X: Zero> Zero for Var<X> {
   }
 }
 
-impl<X> Var<X> {
+impl<X> Var<X> where X: Clone {
   pub fn elem_at_index(&self) -> X {
-    self.0
+    self.0.clone()
   }
 }
 
