@@ -1,3 +1,8 @@
+mod complex;
+
+pub use complex::c128;
+
+
 pub trait Zero {
   fn zero() -> Self;
 }
@@ -23,6 +28,8 @@ impl Zero for i64 { fn zero() -> Self { 0 } }
 impl Zero for i128 { fn zero() -> Self { 0 } }
 impl Zero for f32 { fn zero() -> Self { 0. } }
 impl Zero for f64 { fn zero() -> Self { 0. } }
+// impl Zero for std::num:: { fn zero() -> Self { 0. } }
+impl Zero for c128 { fn zero() -> Self { complex::COMPLEX_0 } }
 
 
 impl One for usize { fn one() -> Self { 1 } }
@@ -39,6 +46,8 @@ impl One for i64 { fn one() -> Self { 1 } }
 impl One for i128 { fn one() -> Self { 1 } }
 impl One for f32 { fn one() -> Self { 1. } }
 impl One for f64 { fn one() -> Self { 1. } }
+impl One for c128 { fn one() -> Self { complex::COMPLEX_1 } }
+
 
 impl MulCommute for usize {}
 impl MulCommute for u8 {}
@@ -54,6 +63,7 @@ impl MulCommute for i64 {}
 impl MulCommute for i128 {}
 impl MulCommute for f32 {}
 impl MulCommute for f64 {}
+impl MulCommute for c128 {}
 
 
 
