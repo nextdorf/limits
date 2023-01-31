@@ -7,3 +7,13 @@ edition = "2021"
 
 [dependencies]
 # limits-const = { path = "crates/limits-const" }
+
+
+[[example]]
+name = "relativity"
+
+
+# [[example]]
+# name = "lie-groups"
+
+

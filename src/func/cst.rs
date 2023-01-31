@@ -15,12 +15,9 @@ pub struct ZeroFct;
 pub struct OneFct;
 
 
-impl<X, Y> Fct for Auto<CstFct<Y>, X> where Y: Clone {
-  type X = X;
-  type Y = Y;
-
+impl<X, Y> Fct<X, Y> for CstFct<Y> where Y: Clone {
   fn eval_fct(&self, _: X) -> Y {
-    self.0.eval_fct()
+    self.eval_fct()
   }
 }
 
@@ -29,17 +26,14 @@ impl<X: Clone> CstFct<X> {
     self.0.clone()
   }
 
-  pub fn auto_fct<XIn>(self) -> Auto<Self, XIn> {
-    Auto::wrap(self)
+  pub fn auto_fct(self) -> Self {
+    self
   }
 }
 
-impl<X, Y> Fct for Auto<ZeroFct, (X, Y)> where Y: Zero {
-  type X = X;
-  type Y = Y;
-
+impl<X, Y> Fct<X, Y> for ZeroFct where Y: Zero {
   fn eval_fct(&self, _: X) -> Y {
-    self.0.eval_fct()
+    self.eval_fct()
   }
 }
 
@@ -47,29 +41,18 @@ impl ZeroFct {
   pub fn eval_fct<X: Zero>(&self) -> X {
     X::zero()
   }
-
-  pub fn auto_fct<X, Y: Zero>(self) -> Auto<Self, (X, Y)> {
-    Auto::wrap(self)
-  }
 }
 
 
-impl<X, Y> Fct for Auto<OneFct, (X, Y)> where Y: One {
-  type X = X;
-  type Y = Y;
-
+impl<X, Y> Fct<X, Y> for OneFct where Y: One {
   fn eval_fct(&self, _: X) -> Y {
-    self.0.eval_fct()
+    self.eval_fct()
   }
 }
 
 impl OneFct {
   pub fn eval_fct<X: One>(&self) -> X {
     X::one()
-  }
-
-  pub fn auto_fct<X, Y: One>(self) -> Auto<Self, (X, Y)> {
-    Auto::wrap(self)
   }
 }
 

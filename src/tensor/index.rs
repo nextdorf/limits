@@ -90,7 +90,7 @@ impl<I> TensorIndexRepr for TensorIndex<I> where I: DualIndex + Copy {
     self
   }
 
-  fn raise(self, i: usize) -> Self {
+  fn raise(mut self, i: usize) -> Self {
     self.0[i] = self.0[i].raise();
     self
   }

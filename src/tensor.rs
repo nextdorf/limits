@@ -1,10 +1,10 @@
 mod index;
-mod vec_impl;
+// mod vec_impl;
 pub mod contraction;
 
 
 pub use index::*;
-pub use vec_impl::*;
+// pub use vec_impl::*;
 
 pub use contraction::Contraction;
 
