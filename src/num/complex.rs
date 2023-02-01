@@ -1,4 +1,4 @@
-use std::{ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign, Neg}};
+use std::{ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign, Neg}, fmt::Display, num::FpCategory};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd)]
@@ -342,6 +342,27 @@ impl TryFrom<c128> for f64 {
       std::num::FpCategory::Zero | std::num::FpCategory::Subnormal => 
         Ok(value.0),
       _ => Err(NonRealNumber(value))
+    }
+  }
+}
+
+
+impl Display for c128 {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match (self.0.classify(), self.1.classify()) {
+      (_, FpCategory::Zero | FpCategory::Subnormal) => write!(f, "{}", self.0),
+      (FpCategory::Zero, _) => match (self.1.abs() - 1.).classify() {
+        FpCategory::Zero | FpCategory::Subnormal => {
+          f.write_str(if self.1 > 0. {"i"} else {"-i"})
+        },
+        _ => write!(f, "{}i", self.1),
+      },
+      _ => match (self.1.abs() - 1.).classify() {
+        FpCategory::Zero | FpCategory::Subnormal => {
+          write!(f, "{}{}", self.0, if self.1 > 0. {"+i"} else {"-i"})
+        },
+        _ => write!(f, "{}{}{}i", self.0, if self.1 < 0. {'-'} else {'+'}, self.1.abs())
+      }
     }
   }
 }
