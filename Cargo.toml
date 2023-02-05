@@ -7,6 +7,11 @@ edition = "2021"
 
 [dependencies]
 # limits-const = { path = "crates/limits-const" }
+limits-tensor = { path = "crates/tensor" }
+# num-bigint = "*"
+# num-complex = "*"
+# num-traits = "*"
+num = "*"
 
 
 [[example]]

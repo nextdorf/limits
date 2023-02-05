@@ -11,3 +11,5 @@ Cargo.lock
 
 # CUSTOM
 .vscode
+/crates/*/target/
+
