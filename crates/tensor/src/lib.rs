@@ -6,7 +6,8 @@
 
 pub mod tensorspace;
 
-pub mod fin_vspace;
+// pub mod fin_vspace;
+pub mod ndarray;
 
 mod util;
 pub use util::*;
