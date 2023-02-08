@@ -6,8 +6,12 @@
 
 pub mod tensorspace;
 
+pub mod tensor_traits;
+
 // pub mod fin_vspace;
 pub mod ndarray;
+
+pub mod sym;
 
 mod util;
 pub use util::*;
