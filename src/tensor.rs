@@ -1,13 +1,9 @@
 mod index;
 // mod vec_impl;
-pub mod contraction;
 
 
 pub use index::*;
 // pub use vec_impl::*;
-
-pub use contraction::Contraction;
-
 
 pub enum ContractionErr {
   /// In the general case one index has to be contra-variant (raised) and the other has to be co-
@@ -27,10 +23,28 @@ pub enum ContractionErr {
 pub type ContractionRes<T> = Result<T, ContractionErr>;
 
 
+// pub trait Contraction: Tensor {
+//   type Output: Contraction;
+
+//   fn contract(self, i: usize, j: usize) -> ContractionRes<Self::Output>;
+// }
+
+pub trait TensorMul<Rhs = Self>: Tensor where Rhs: Tensor {
+  type Output: Tensor;
+
+  fn tensor_mul(self, rhs: Rhs) -> Self::Output;
+
+  fn contract_with(self, rhs: Rhs, i: usize, j: usize) -> ContractionRes<Self::Output> {
+    self.tensor_mul(rhs).contract(i, j)
+  }
+}
+
+
 pub trait Tensor: Sized + Clone {
   type I: TensorIndexRepr;
   type SelfContractionOutput: Into<Self> + Tensor;
 
+  fn contract(self, i: usize, j: usize) -> ContractionRes<Self::SelfContractionOutput>;
   // fn elem_at_index(&self, i: Self::I) -> Self::X;
   fn get_index_repr(&self) -> Self::I;
   fn set_index_repr(&mut self, i: Self::I);

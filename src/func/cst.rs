@@ -1,6 +1,11 @@
 use std::{marker::PhantomData};
 
-use crate::{num::{Zero, One}, Auto};
+
+// use crate::{num::{Zero, One}, Auto};
+use num_traits::{Zero, One};
+use crate::Auto;
+
+// use num_complex;
 
 use super::Fct;
 

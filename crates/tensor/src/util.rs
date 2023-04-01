@@ -19,7 +19,7 @@ impl<const N: usize> Dim<N> {
 }
 
 
-pub fn move_vec_elems<T>(elems: &mut Vec<T>, src: usize, dst: usize) {
+pub fn move_vec_elems_by_swap<T>(elems: &mut Vec<T>, src: usize, dst: usize) {
   match src.cmp(&dst) {
     std::cmp::Ordering::Less => {
       for i in src..dst {
@@ -35,3 +35,18 @@ pub fn move_vec_elems<T>(elems: &mut Vec<T>, src: usize, dst: usize) {
   }
 }
 
+pub fn move_vec_elems<T: Copy>(elems: &mut Vec<T>, src: usize, dst: usize) {
+  match src.cmp(&dst) {
+    std::cmp::Ordering::Equal => (),
+    std::cmp::Ordering::Less => {
+      let new_dst_val = elems[src];
+      elems.copy_within((src+1)..=dst, src);
+      elems[dst] = new_dst_val;
+    },
+    std::cmp::Ordering::Greater => {
+      let new_dst_val = elems[src];
+      elems.copy_within(dst..src, dst + 1);
+      elems[dst] = new_dst_val;
+    },
+  }
+}

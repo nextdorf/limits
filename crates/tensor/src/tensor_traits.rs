@@ -1,5 +1,7 @@
-mod impl_traits;
-pub use impl_traits::*;
+// mod impl_traits;
+mod dual_shape_t;
+// pub use impl_traits::*;
+pub use dual_shape_t::*;
 
 use std::collections::HashSet;
 
@@ -110,28 +112,96 @@ pub struct TensorIdx<T> {
   pub idx: T,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TensorRepr<T, Idx> where T: Tensor<Idx> {
-  Tensor(T),
-  View(T::TensorView),
-  // Func(fn() -> T),
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// pub enum TensorRepr<T, Idx> where T: Tensor<Idx> {
+//   Tensor(T),
+//   View(T::View),
+//   // Func(fn() -> T),
+// }
+
+// pub trait Tensor<Idx>: TensorShape + DualShape + SelfContractable + Contractable<TensorRepr<Self, Idx>> {
+//   type Shape: DualShape;
+//   type TensorView: Tensor<Idx, Shape = Self::Shape> + Contractable<Self>; //+ Contractable<Self, Output = Self::Output>;
+
+//   fn get_shape(&self) -> Self::Shape;
+//   fn get(self, idxs: &[TensorIdx<Idx>]) -> Self;
+//   fn get_view(&self, idxs: &[TensorIdx<Idx>]) -> Self::TensorView;
+
+//   fn as_view(&self) -> Self::TensorView {
+//     self.get_view(&[])
+//   }
+// }
+
+
+pub trait IndexedShape<Idx> {
+  fn get(self, idxs: &[TensorIdx<Idx>]) -> Self;
 }
 
-pub trait Tensor<Idx>: TensorShape + DualShape + SelfContractable + Contractable<TensorRepr<Self, Idx>> {
-  type Shape: DualShape;
-  type TensorView: Tensor<Idx, Shape = Self::Shape> + Contractable<Self>; //+ Contractable<Self, Output = Self::Output>;
 
-  fn get_shape(&self) -> Self::Shape;
-  fn get(self, idxs: &[TensorIdx<Idx>]) -> Self;
-  fn get_view(&self, idxs: &[TensorIdx<Idx>]) -> Self::TensorView;
+// pub trait Tensor<Idx>: TensorShape + DualShape + IndexedShape<Idx> + SelfContractable + Contractable<Self> + Contractable<Self::TensorView> {//+ Contractable<TensorRepr<Self, Idx>> {
+//   type Shape: DualShape;
+//   type TensorView: Tensor<Idx, Shape = Self::Shape> + Contractable<Self, Output = <Self as Contractable<Self::TensorView>>::Output>; //+ Contractable<Self, Output = Self::Output>;
 
-  fn as_view(&self) -> Self::TensorView {
+//   // fn get_shape(&self) -> Self::Shape;
+//   fn get_view(&self, idxs: &[TensorIdx<Idx>]) -> Self::TensorView;
+
+//   fn as_view(&self) -> Self::TensorView {
+//     self.get_view(&[])
+//   }
+// }
+
+
+pub trait AsView<Idx> {
+  type View<'a> where Self: 'a;
+
+  fn get_view(&self, idxs: &[TensorIdx<Idx>]) -> Self::View<'_>;
+
+  fn as_view(&self) -> Self::View<'_> {
     self.get_view(&[])
   }
 }
 
 
+pub trait AsMutView<Idx>: AsView<Idx> {
+  type MutView<'a> where Self: 'a;
 
+  fn get_mut_view(&mut self, idxs: &[TensorIdx<Idx>]) -> Self::MutView<'_>;
+
+  fn as_mut_view(&mut self) -> Self::MutView<'_> {
+    self.get_mut_view(&[])
+  }
+}
+
+
+pub trait TensorBase<Idx, COut>: DualShape + IndexedShape<Idx> + TensorShape
+  + Contractable<Self, Output = COut> + SelfContractable
+{}
+
+pub trait TensorView<'a, Idx, COut>: 'a + AsMutView<Idx>
+  + Contractable<Self::MutView<'a>, Output = COut> + Contractable<Self::View<'a>, Output = COut>
+where Self::View<'a>: Contractable<Self, Output = COut>, Self::MutView<'a>: Contractable<Self, Output = COut>
+{}
+
+pub trait Tensor<'a, Idx, COut>: TensorBase<Idx, COut> + TensorView<'a, Idx, COut>
+where Self::View<'a>: Contractable<Self, Output = COut>, Self::MutView<'a>: Contractable<Self, Output = COut>
+{}
+
+
+impl<Idx, COut, T> TensorBase<Idx, COut> for T where
+T: DualShape + IndexedShape<Idx> + TensorShape + Contractable<Self, Output = COut> + SelfContractable
+{}
+
+impl<'a, Idx, COut, T> TensorView<'a, Idx, COut> for T where
+T: 'a + AsMutView<Idx> + Contractable<Self::MutView<'a>, Output = COut> + Contractable<Self::View<'a>, Output = COut>,
+Self::View<'a>: Contractable<Self, Output = COut>,
+Self::MutView<'a>: Contractable<Self, Output = COut>
+{}
+
+impl<'a, Idx, COut, T> Tensor<'a, Idx, COut> for T where
+T: TensorBase<Idx, COut> + TensorView<'a, Idx, COut>,
+Self::View<'a>: Contractable<Self, Output = COut>,
+Self::MutView<'a>: Contractable<Self, Output = COut>
+{}
 
 
 

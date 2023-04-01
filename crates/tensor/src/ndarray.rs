@@ -1,10 +1,12 @@
+use std::f64::consts::PI;
+
 pub use ndarray as np;
 
-use ndarray_einsum_beta::einsum;
+use ndarray_einsum_beta::{einsum, ArrayLike};
 pub use np::prelude::*;
 
 
-use crate::{tensor_traits::{SelfContractable, ContractRes, ContractErr, Contractable}, DisjunctIdxs, DisjunctIdxPairs};
+use crate::{tensor_traits::{SelfContractable, ContractRes, ContractErr, Contractable, BoundedShape, TensorShape, Tensor, DualShapeT, TensorIdx, IndexedShape, AsView, AsMutView, DualShapeMetaInfo, DualVariant}, DisjunctIdxs, DisjunctIdxPairs};
 
 
 impl<A> SelfContractable for ArrayD<A> where A: np::LinalgScalar {
@@ -15,21 +17,6 @@ impl<A> SelfContractable for ArrayD<A> where A: np::LinalgScalar {
     }
   }
 } 
-
-
-// impl<'a, SL, SR, DL, DR, A> Contractable<&'a ArrayBase<SR, DR>> for &ArrayBase<SL, DL> where
-// A: np::LinalgScalar, SL: np::Data<Elem = A>, SR: np::Data<Elem = A>, DL: Dimension, DR: Dimension
-// {
-//   type Output = ArrayD<A>;
-
-//   fn contract_gen_with(self, rhs: &ArrayBase<SR, DR>, ax_sets: &DisjunctIdxPairs) -> ContractRes<ArrayD<A>, (Self, &'a ArrayBase<SR, DR>)> {
-//     // Ok(tensordot(self, rhs, lhs_axes, rhs_axes))
-//     match contract2_gen_ref(&self, rhs, ax_sets) {
-//       Ok(res) => Ok(res),
-//       Err(err) => Err((err, self)),
-//     }
-//   }
-// } 
 
 
 impl<'a, A> Contractable<&'a ArrayD<A>> for &ArrayD<A> where A: np::LinalgScalar {
@@ -72,7 +59,6 @@ impl<A> Contractable<ArrayD<A>> for ArrayD<A> where A: np::LinalgScalar {
     }
   }
 }
-
 
 
 pub fn contract_gen_ref<A>(arr: &ArrayD<A>, ax_sets: &DisjunctIdxs) -> Result<ArrayD<A>, ContractErr> where A: np::LinalgScalar {
@@ -155,13 +141,100 @@ pub fn contract2_gen_ref<A>(arr: &ArrayD<A>, brr: &ArrayD<A>, ax_sets: &Disjunct
       i+=1;
     }
   }
-  let input_str = String::from_iter(input_str_a)
-    + ", " + String::from_iter(input_str_b).as_str()
-    + " -> " + String::from_iter(output_str).as_str();
+  // let input_str = String::from_iter(input_str_a)
+  //   + ", " + String::from_iter(input_str_b).as_str()
+  //   + " -> " + String::from_iter(output_str).as_str();
+  let input_str = format!("{}, {} -> {}", String::from_iter(input_str_a), String::from_iter(input_str_b), String::from_iter(output_str));
   match einsum(input_str.as_str(), &[arr, brr]) {
     Ok(res) => Ok(res),
     Err(estr) => {eprintln!("{estr}"); Err(ContractErr::Irrepresentable)},
   }
+}
+
+
+// impl<D> BoundedShape for D where D: Dimension {
+//   fn order(&self) -> usize {
+//     self.ndim()
+//   }
+// }
+
+
+impl<S, D> BoundedShape for ArrayBase<S, D> where S: np::RawData, D: Dimension {
+  fn order(&self) -> usize {
+    self.ndim()
+  }
+}
+
+
+impl<S, D> TensorShape for ArrayBase<S, D> where S: np::RawDataClone, D: Dimension {
+  fn swap_axes(&mut self, i: usize, j: usize) {
+    self.swap_axes(i, j)
+  }
+}
+
+
+impl<S> IndexedShape<usize> for ArrayBase<S, IxDyn> where S: np::Data {
+  fn get(mut self, idxs: &[TensorIdx<usize>]) -> Self {
+    for TensorIdx { axis, idx } in idxs.iter() {
+      self.index_axis_inplace(Axis(*axis), *idx);
+    }
+    self
+  }
+}
+
+
+impl<S, D> AsView<usize> for ArrayBase<S, D> where S: np::Data, D: np::RemoveAxis {
+  type View<'a> = ArrayView<'a, S::Elem, IxDyn> where S::Elem: 'a, Self: 'a;
+  // type View<'a> = ArrayBase<np::ViewRepr<&'a S::Elem>, IxDyn> where S::Elem: 'a, Self: 'a;
+
+  fn get_view(&self, idxs: &[TensorIdx<usize>]) -> ArrayView<'_, S::Elem, IxDyn> {
+    let mut res = self.view().into_dyn();
+    for TensorIdx { axis, idx } in idxs {
+      res = res.index_axis_move(Axis(*axis), *idx);
+    }
+    res
+  }
+}
+
+impl<S, D> AsMutView<usize> for ArrayBase<S, D> where S: np::DataMut, D: np::RemoveAxis {
+  type MutView<'a> = ArrayViewMut<'a, S::Elem, IxDyn> where S::Elem: 'a, Self: 'a;
+  // type MutView<'a> = ArrayBase<np::ViewRepr<&'a mut S::Elem>, IxDyn> where S::Elem: 'a, Self: 'a;
+
+  fn get_mut_view(&mut self, idxs: &[TensorIdx<usize>]) -> ArrayViewMut<'_, S::Elem, IxDyn> {
+    let mut res = self.view_mut().into_dyn();
+    for TensorIdx { axis, idx } in idxs {
+      res = res.index_axis_move(Axis(*axis), *idx);
+    }
+    res
+  }
+}
+
+
+pub type DualTensor<A> = DualShapeT<ArrayD<A>>;
+
+
+#[test]
+fn dualtensor_check() {
+  let eps = Array::from_shape_fn((3, 3, 3), |inds| {
+    match inds {
+      (0, 1, 2) | (1, 2, 0) | (2, 0, 1) => 1.,
+      (0, 2, 1) | (1, 0, 2) | (2, 1, 0) => -1.,
+      _ => 0.
+    }
+  });
+  let rot_g_tensor: DualTensor<f64> = DualShapeT::new(eps.into_dyn(),
+    DualShapeMetaInfo::new(vec![
+    DualVariant::Co,
+    DualVariant::Contra,
+    DualVariant::Co,
+  ]));
+
+  let n = array![1.234, -0.2, 0.876];
+  let n_norm = (n.dot(&n) as f64).sqrt();
+  let phi = 30./180.*PI;
+  let n = DualShapeT::new_vec(n / n_norm * phi);
+
+  let rot_g = rot_g_tensor.contract(n);
 }
 
 
