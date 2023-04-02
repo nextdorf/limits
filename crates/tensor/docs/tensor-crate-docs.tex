@@ -1,10 +1,9 @@
-%\documentclass{article}
 \documentclass[12pt]{article}
 
 \usepackage[a4paper, total={185mm, 265mm}]{geometry} %A4: 210px * 297px
 
 \usepackage[utf8]{inputenc} % Required for inputting international characters
-\usepackage{babel}
+\usepackage[ngerman]{babel}
 \usepackage[T1]{fontenc} % Output font encoding for international characters
 
 \usepackage{amssymb}
@@ -13,6 +12,7 @@
 %\usepackage{mathpazo} % Use the Palatino font by default
 %\usepackage{pazocal}
 \usepackage{mathtools}
+\usepackage{tensor}
 \usepackage{physics}
 
 \usepackage{xcolor}
@@ -20,7 +20,6 @@
 \usepackage{float}
 \usepackage{shellesc}
 \usepackage{svg}
-\usepackage{comment}
 \usepackage[linkcolor=blue, colorlinks=true]{hyperref}
 
 \usepackage[backend=bibtex,style=authoryear,natbib=true]{biblatex} % Use the bibtex backend with the authoryear citation style (which resembles APA)
@@ -40,18 +39,159 @@
 \newcommand{\pushright}[1]{\ifmeasuring@#1\else\omit\hfill$\displaystyle#1$\fi\ignorespaces}
 \newcommand{\pushleft}[1]{\ifmeasuring@#1\else\omit$\displaystyle#1$\hfill\fi\ignorespaces}
 
+\DeclareMathOperator*{\sumint}{%
+	\mathchoice%
+	{\ooalign{$\displaystyle\sum$\cr\hidewidth$\displaystyle\int$\hidewidth\cr}}
+	{\ooalign{\raisebox{.14\height}{\scalebox{.7}{$\textstyle\sum$}}\cr\hidewidth$\textstyle\int$\hidewidth\cr}}
+	{\ooalign{\raisebox{.2\height}{\scalebox{.6}{$\scriptstyle\sum$}}\cr$\scriptstyle\int$\cr}}
+	{\ooalign{\raisebox{.2\height}{\scalebox{.6}{$\scriptstyle\sum$}}\cr$\scriptstyle\int$\cr}}
+}
+
+\newcommand{\bulletspace}[1][1.5pc]{\hspace{#1}}
+
 \begin{document}
-
-
-
-\centerline{\sc \large Documentation for the Tensor Crate}
+\centerline{\sc \Huge Tensor}
+\centerline{\sc \normalsize Dokumentation für das Tensor Crate}
 \vspace{.5pc}
-\vspace{2pc}
+%\begin{center}
+%\includegraphics[width=1.0\textwidth]{images/logo.png}
+%\end{center}
+\vspace{.5pc}
+\centerline{\sc \large von Nextdorf}
+\vspace{1.5pc}
 
 \tableofcontents
 
-\include{tensor-crate-docs-appendix}
+\section{Mathematische Definition}
+\subsection{Vektorraum}
+\subsubsection{Allgemein}
+Ein Vektorraum $(V, \mathbb K, \cdot)$ besteht aus einer abelschen Gruppe $V$, einem Körper $\mathbb K$ und einer Abbildung $\cdot\colon \mathbb K \times V \to V$. Für $\alpha,\; \beta \in \mathbb K$ und $x,\; y \in V$ gilt:
+\begin{flalign}
+\bulletspace
+\bullet \ & (\alpha + \beta) \cdot x = (\alpha\cdot x) + (\beta \cdot x) &&\\
+\bullet \ & \alpha \cdot (x + y) = (\alpha\cdot x) + (\alpha \cdot y) &&\\
+\bullet \ & (\alpha \beta) \cdot x = \alpha \cdot (\beta \cdot x) &&\\
+\bullet \ & 1 \cdot x = x &&
+\end{flalign}
+Oftmals wird auch abkürzend die Bezeichnung für die Gruppe bzw. für die Menge und für den Vektorraum synonym verwendet. Auch ist die zusätzliche Definition $\cdot\colon V\times\mathbb K \to V,\; (x, \alpha) \mapsto \alpha \cdot x$ üblich und oftmals wird das Symbol für die Skalar-Multiplikation komplett weggelassen.
 
+\subsubsection{Norm}
+Auf dem Vektorraum $(V, \mathbb K, \cdot)$ bezeichnet die Abbildung $\norm{\cdot}\colon V \to \mathbb R$ eine Norm, falls für $\alpha \in \mathbb K$ und $x,\; y \in V$ gilt:
+\begin{flalign}
+\bulletspace
+\bullet \ & \norm{x} = 0 \Rightarrow x = 0 &&\\
+\bullet \ & \norm{\alpha x} = |\alpha|\;\norm{x} &&\\
+\bullet \ & \norm{x+y} \leq \norm{x} + \norm{y} &&
+\end{flalign}
+Zusammen mit der Norm wird der Vektorraum auch als normierter Raum bezeichnet.
+
+\subsubsection{Vollständiger Raum}
+Es sei $(V, \norm{\cdot})$ ein normierter Raum und $( x_k )_{k\in \mathbb N} \subset V$ eine Folge. Die Folge ist eine Cauchy-Folge, falls sie das folgende Kriterium erfüllt:
+\begin{align}
+\forall \epsilon > 0\; \exists n \in \mathbb N\; \forall k, m \geq n\colon \norm{x_k - x_m} < \epsilon
+\end{align}
+Anschaulich ist eine Cauchy-Folge eine Folge, die im Unendlichen asymptotisch Konstant wird. Falls alle Cauchy-Folgen konvergieren, also wenn all diese asymptotischen Konstanten in $V$ enthalten sind, dann wird $V$ auch als vollständiger Raum bezeichnet.\\
+Unvollständige Räume sind also Räume mit "Löchern". Allerdings kann man sie immer vervollständigen. Dazu betrachtet man die Menge aller Cauchy-Folgen und fasst die Folgen zusammen, die sich um eine Null-Folge unterscheiden:
+\begin{align}
+W =& \big\{ x \in C_V\colon \big\{ y \in C_V \big| \lim\limits_{k\to\infty} \norm{x_k - y_k} = 0 \big\} \big\} \\
+&\text{wobei } C_V = \big\{x \in (V)_{\mathbb N} \big| \text{$x$ ist Cauchy-Folge} \big\} \nonumber
+\end{align}
+Durch verallgemeinern von $(+)_V$, $(\cdot)_V$ und $\norm{\cdot}_V$ auf $C_V$ wird $W$ zum vollständigen, normierten Raum. Im letzten Schritt identifiziert man die Elemente von $W$ mit ihren Grenzwerten, das heißt für $v \in V$ definiert man $x = (v_k)_{k\in \mathbb N} \in C_V$ und findet $w \in W$ mit $x \in w$ und man identifiziert $v$ mit $w$. Das wohl bekannteste Beispiel für die Vervollständigung eines Raumes ist die Definition von $\mathbb R$ als die Vervollständigung des Körpers $\mathbb Q$.
+
+\subsubsection{Skalarprodukt}
+Auf dem Vektorraum $(V, \mathbb K, \cdot)$ mit $\mathbb R \subset \mathbb K$ bezeichnet die bilineare Abbildung $\braket{\cdot}{\cdot}\colon V\times V \to K$ ein Skalarprodukt, falls für $\alpha \in \mathbb K$ und $x,\; y,\; z \in V$ gilt:
+\begin{flalign}
+\bulletspace
+\bullet \ & \braket{x}{x} \geq 0 &&\\
+\bullet \ & \braket{x}{x} = 0 \Leftrightarrow x = 0 &&\\
+\bullet \ & \braket{x}{y} = \braket{y}{x}^*\; \text{mit } 0^* = 0,\; z^* = |z|^2/z &&\\
+\bullet \ & \braket{x}{\alpha y + z} = \alpha \braket{x}{y} + \braket{x}{z} &&
+\end{flalign}
+Zusammen mit dem Skalarprodukt wird der Vektorraum auch als Skalarproduktraum oder Prähilbertraum bezeichnet.\\
+Insbesondere induziert das Skalarprodukt die Norm $x \mapsto \sqrt{\braket{x}{x}}$.
+
+\subsubsection{Hilbertraum}
+Ein Hilbertraum ist ein Skalarproduktraum für den die induzierte Norm einen vollständigen Raum ergibt.
+
+
+\subsection{Dualraum}
+\subsubsection*{Allgemein}
+Für den Vektorraum $V \equiv (V, \mathbb K, \cdot)$ lässt sich die Menge der linearen Abbildungen $L(V \to \mathbb K)$ definieren. Wir definieren:
+\begin{flalign}
+\bulletspace
+\bullet \ & +\colon L(V \to \mathbb K) \times L(V \to \mathbb K) \to L(V \to \mathbb K),\; (f,g) \mapsto \big( x \mapsto f(x) + g(x) \big) \label{dual add}&&\\
+\bullet \ & \cdot\colon \mathbb K \times L(V \to \mathbb K) \to L(V \to \mathbb K),\; (\alpha, f) \mapsto \big( x \mapsto \alpha f(x) \big) \label{dual mul} &&
+\end{flalign}
+Somit bilden $(L(V \to \mathbb K), +)$ eine abelsche Gruppe und $((L(V \to \mathbb K), +), \mathbb K, \cdot)$ ein Vektorraum. Dieser induzierte Vektorraum heißt auch Dualraum von $V$ und wird mit $V^\dagger$ bezeichnet.
+
+\subsubsection*{Norm}
+Ist $V$ zudem normiert, dann lässt sich außerdem noch eine Norm auf $V^\dagger$ induzieren:
+\begin{align}
+\norm{\cdot} \colon V^\dagger \to \mathbb K,\; f \mapsto \sup_{\norm{x} = 1} |f(x)|
+\end{align}
+In dem Fall bezeichnet der Dualraum üblicherweise nur die Elemente mit endlicher Norm, also
+\begin{align*}
+V^\dagger = \big\{f \in L(V \to \mathbb K) \;\big| \sup\limits_{\norm{x} = 1} |f(x)| < \infty \big\}
+\end{align*}
+Es gibt noch weitere Normen, die Induziert werden, aber solange nicht anders angegeben, gehen wir hier von dieser Standardnorm für den Dualraum aus.
+
+\subsubsection*{Zusammenhang zum Skalarprodukt und Hilberträumen}
+Oftmals ist es im Zusammenhang zum Skalarprodukt interessant die linearen Abbildungen $l_x\colon y \mapsto \braket{x}{y}$ für $x$ beliebig aber fest zu betrachten. Es gilt nämlich $\norm{l_x} = \norm{x} < \infty$ und somit auch $l_x \in V^\dagger$. Insbesondere besagt der Darstellungssatz von Fréchet-Riesz für Hilberträume, dass
+\begin{align}
+V^\dagger = \big\{ x \in V\colon l_x \big\}
+\end{align}
+In der Braket-Notation verdeutlicht man den Zusammenhang damit, dass Kets $\ket x$ Vektorraumelemente darstellen und Bras $\bra x$ entsprechend Dualraumelemente darstellen.
+
+\subsection{Tensoren}
+Ein Tensor ist im Grunde die Idee von Skalarprodukträumen und induzierten Dualräumen verallgemeinert auf beliebige multilineare Objekte. Wir definieren:
+\begin{align}
+V^{(0, 0)} \coloneqq \mathbb K,\;  V^{(r+1, s)} \coloneqq \bigoplus_{v\in V} V^{(r, s)} \times v,\; V^{(r, s+1)} \coloneqq \bigoplus_{v\in V^\dagger} V^{(r, s)} \times v
+\end{align}
+Insbesondere entspricht $V^{(1, 0)} \equiv V$ und $V^{(0, 1)} \equiv V^\dagger$. Der gesamte Tensorraum $T_V$ ist dann definiert als
+\begin{align}
+T_V = \bigoplus_{r,s = 0}^\infty V^{(r, s)}
+\end{align}
+Es seien $t\equiv \sumint_k (x^1_k, x^2_k, \dots), u\equiv \sumint_k (y^1_k, y^2_k, \dots) \in T_V$, wobei $x^i_\cdot \in T^\dagger$ und $y^j_\cdot \in T$, dann definiere die Kontraktion als multilineare Abbildung:
+\begin{align}
+&C_i^j(t, u) \coloneqq \sumint_{k, l} x^i_k(y^j_l) \cdot \big(x^1_k, \dots, x^{i-1}_k, x^{i+1}_k, \dots, y^1_l, \dots, y^{j-1}_l, y^{j+1}_l, \dots\big)\\
+&t \in V^{(a, b)},\; u \in V^{(a', b')} \Rightarrow C_i^j(t, u) \in V^{(a+a'-1, b+b'-1)}
+\end{align}
+Da jeder Vektorraum eine Basis hat, können wir eine Basis $(\vec e_i)_{i\in I}$ für $V$ betrachten. Entsprechend bildet auf Hilberträumen $(\vec e^i)_{i\in I}$ eine Basis für $V^\dagger$ wobei $\vec e^i(\vec e_j) \coloneqq \delta^i_j$.\\
+Um die Notation in der Rechnung zu vereinfachen (handlich, falls der Rang relativ niedrig ist), schreibt man den Tensor oft in Index-Schreibweise. Ist also $t \in V^{k_1} \times V^{\dagger\; l_1} \times V^{k_2} \times V^{\dagger\; l_2} \times \dots$, dann ist
+\begin{align}
+t = \sumint_{a_1,\dots a_{k_1}, b_1,\dots, b_{l_1}, \dots \in I} \; t\indices{^{a_1\cdots a_{k_1}} _{b_1\cdots b_{l_1}} ^{c_1\cdots c_{k_2}} _{d_1\cdots d_{l_2}}} \phantom{0} \indices*{^\cdots_\cdots} \; \big( \vec e_{a_1}, \dots, \vec e_{a_{k_1}}, \vec e^{b_1}, \dots, \vec e^{b_{l_1}}, \dots \big)
+\end{align}
+Tensoren werden bei fester Basis dann mit $t\indices*{^\cdots_\cdots}$ notiert. Anhand der Stellung des Index im Tensor kann man ablesen, ob er mit der Vektorbasis kontrahiert wird (diese stehen oben und heißen \textbf{kontravariante Indizes}), oder ob er mit der Dualbasis kontrahiert wird (diese stehen unten und heißen \textbf{kovariante Indizes}).\\
+In der Einsteinschen Summenkonvention werden Summenzeichen ebenfalls weggelassen und gleichnamige Indizes werden kontrahiert. Hier einige Beispiele in den definierten Konventionen:
+\begin{flalign*}
+\bulletspace
+\bullet \ & x \in V = V^{(1, 0)} \Rightarrow x = x^i \vec e_i &&\\
+\bullet \ & f \in V^\dagger = L(V \to \mathbb K) = V^{(0, 1)} \Rightarrow f(x) = f_i x^i = f_i \vec e^i(x) = C^1_1(f, x) &&\\
+\bullet \ & A \in L(V \to V) \subset V^{(1, 1)} \Rightarrow A(x) = A\indices{^i_j} \vec e_i x^j = A\indices{^i_j} \vec e_i \vec e^j(x) = C_2^1(A, x),\; (A(x))^i = A\indices{^i_j} x^j &&\\
+\bullet \ & g \in L(V^2 \to \mathbb K) = V^{(0, 2)} \Rightarrow g(x, y) = g\indices{_i_j} x^i y^j = g\indices{_i_j} \vec e^i(x) \vec e^j(y) = C_1^1(C_1^1(g, x), y) = C_1^1(C_2^1(g, y), x) &&
+\end{flalign*}
+Unterschiedliche Basen notiert man anhand der Indizes. Beispielsweise würde man den Tensor $t$ in der Basis $B = (\vec e_k)_{k\in I}$ mit $t^k$ notieren und in $\bar B = (\vec e_{\bar k})_{\bar k \in \bar I}$ mit $t^{\bar k}$, sodass in der Einsteinschen Summenkonvention direkt klar ist, dass zwei Tensoren in unterschiedlicher Basis nicht ohne Basiswechsel kontrahiert werden können. Der Basiswechseloperator wäre entsprechend ein $V^{(1, 1)}$-Tensor mit kontravariantem Index in $B$ und kovariantem Index in $\bar B$. Üblicherweise nimmt man ein Symbol für den Tensor, der beim trivialem Basiswechsel zur Identität wird:
+\begin{align}
+\big( t_k \vec e^k \big) \big( u^{\bar l} \vec e_{\bar l} \big) = t_k \delta\indices{^k_{\bar l}} u^{\bar l} = t_k u^k\; \text{und } \delta\indices{^k_{\bar l}} = \vec e^k(\vec e_{\bar l})
+\end{align}
+Neben der Kontraktion zweier Tensoren will man oft auch zwei Indizes innerhalb des selben Tensores kontrahieren, bspw. entspräche $\tr(A) \equiv A\indices{^i_i}$. Man definiert für einen Tensor $t$ wobei der $i$-te Index kovariant und der $j$-te Index kontravariant ist:
+\begin{align}
+C_i^j(t) \coloneqq \begin{dcases}
+\sumint_{k\in I} C_1^j(\vec e_k, C_i^1(t, \vec e^k)) \hspace{2pc}& i>j\\
+\sumint_{k\in I} C_i^1(C_1^j(\vec e^k, t), \vec e_k) & i<j
+\end{dcases}
+\end{align}
+Und für $A \in L(V \to V)$ ergibt sich insbesondere:
+\begin{align*}
+\tr(A) = C^1_2(A) = A\indices{^i_i}
+\end{align*}
+
+\section{Implementierung}
+\subsection{Plannung}
+Zur Konstruktion ist ein Vektorraum und ein Skalarprodukt nötig, sodass sich ein Hilbertraum ergibt. Der Vektorraum sollte ein Trait sein und den Körper über einen internen Type festlegen. Das Skalarprodukt kann über einen Trait "Prehilbertspace" definiert werden, welches den Vektorraum-Trait voraussetzt. Der Prähilbertraum auto-implementiert den normierten Raum, und dieser wiederum auto-implementiert einen Dualraum. "Hilbertspace" wäre dann einfach ein Marker-Trait, der den Trait Prehilbertspace voraussetzt. Es gibt ein \href{https://docs.rs/vector-space/latest/vector_space/index.html}{Crate}, das eigentlich genau das liefert, aber es geht von Copyable Daten aus. Man kann also kein "schweren" Vektoren darstellen. Mit dieser Einschränkung bin ich nicht all zu glücklich. Allerdings könnte ich meine Räume allgemeiner definieren und über Crate-Flags festlegen, dass dieses Trait miteingebunden wird und für auto-implemented wird.
+
+
+\include{tensor-crate-docs-appendix}
 
 \end{document}
 
