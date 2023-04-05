@@ -1,0 +1,69 @@
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{bbm}
+%\usepackage{mathpazo} % Use the Palatino font by default
+%\usepackage{pazocal}
+\usepackage{mathtools}
+\usepackage{tensor}
+\usepackage{physics}
+
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{shellesc}
+\usepackage{svg}
+\definecolor{linkcolor}{RGB}{20, 0, 192}
+\definecolor{urlcolor}{RGB}{12, 96, 255}
+\usepackage[linkcolor=linkcolor, urlcolor=urlcolor, colorlinks=true]{hyperref}
+
+\usepackage[backend=bibtex,style=authoryear,natbib=true]{biblatex} % Use the bibtex backend with the authoryear citation style (which resembles APA)
+\usepackage{listings}
+
+\usepackage[autostyle=true]{csquotes} % Required to generate language-dependent quotes in the bibliography
+\usepackage{color}
+
+
+\newcommand{\argmin}{\operatornamewithlimits{argmin}}
+\newcommand{\argmax}{\operatornamewithlimits{argmax}}
+\renewcommand{\i}{{i\mkern1mu}}
+\newcommand{\del}{\partial}
+\newcommand{\cev}[1]{\reflectbox{\ensuremath{\vec{\reflectbox{\ensuremath{#1}}}}}}
+
+\newcommand{\pushright}[1]{\ifmeasuring@#1\else\omit\hfill$\displaystyle#1$\fi\ignorespaces}
+\newcommand{\pushleft}[1]{\ifmeasuring@#1\else\omit$\displaystyle#1$\hfill\fi\ignorespaces}
+
+\DeclareMathOperator*{\sumint}{%
+	\mathchoice%
+	{\ooalign{$\displaystyle\sum$\cr\hidewidth$\displaystyle\int$\hidewidth\cr}}
+	{\ooalign{\raisebox{.14\height}{\scalebox{.7}{$\textstyle\sum$}}\cr\hidewidth$\textstyle\int$\hidewidth\cr}}
+	{\ooalign{\raisebox{.2\height}{\scalebox{.6}{$\scriptstyle\sum$}}\cr$\scriptstyle\int$\cr}}
+	{\ooalign{\raisebox{.2\height}{\scalebox{.6}{$\scriptstyle\sum$}}\cr$\scriptstyle\int$\cr}}
+}
+
+\newcommand{\bulletspace}[1][1.5pc]{\hspace{#1}}
+
+
+
+%% lstlisting stuff %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\DeclareFixedFont{\ttb}{T1}{txtt}{bx}{n}{12} % for bold
+\DeclareFixedFont{\ttm}{T1}{txtt}{m}{n}{12}  % for normal
+
+\definecolor{deepblue}{rgb}{0,0,0.5}
+\definecolor{deepred}{rgb}{0.6,0,0}
+\definecolor{deepgreen}{rgb}{0,0.5,0}
+
+%% Python %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\lstdefinestyle{python}{
+language=Python,
+basicstyle=\ttm,
+morekeywords={self, None, as},
+keywordstyle=\ttb\color{deepblue},
+emph={__init__, numpy},
+emphstyle=\ttb\color{deepred},
+stringstyle=\color{deepgreen},
+%frame=tb,
+tabsize=2,
+showstringspaces=false
+}
+
+
