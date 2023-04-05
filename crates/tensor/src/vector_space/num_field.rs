@@ -43,7 +43,9 @@ pub trait NumField: Copy + Zero + One + NumOps + Neg<Output = Self> + From<Self:
   fn ln(self) -> Self;
 
   /// Returns the logarithm of the number with respect to an arbitrary base.
-  fn log(self, base: Self::Real) -> Self;
+  fn log(self, base: Self::Real) -> Self {
+    self.ln() / Self::from(base).ln()
+  }
 
   /// Returns the base 2 logarithm of the number.
   fn log2(self) -> Self;
