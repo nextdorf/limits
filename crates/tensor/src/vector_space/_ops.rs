@@ -109,3 +109,56 @@ impl<T, Field> VectorSpaceFullOps<Field> for T where T:
 {
 }
 
+// trait GenGroup {
+//   fn add(self, other: Self) -> Self;
+//   fn ref_add(&self, other: Self) -> Self;
+//   fn add_ref(self, other: &Self) -> Self;
+//   fn ref_add_ref(&self, other: &Self) -> Self;
+
+//   fn sub(self, other: Self) -> Self;
+//   fn ref_sub(&self, other: Self) -> Self;
+//   fn sub_ref(self, other: &Self) -> Self;
+//   fn ref_sub_ref(&self, other: &Self) -> Self;
+
+//   fn neg(self) -> Self;
+//   fn ref_neg(&self) -> Self;
+
+//   fn zero() -> Self;
+// }
+
+// struct Group<T: GenGroup>(pub T);
+
+// impl<T: GenGroup> Add<Group<T>> for Group<T> {
+//   type Output = Group<T>;
+
+//   fn add(self, rhs: Self) -> Group<T> {
+//     Group(self.0.add(rhs.0))
+//   }
+// }
+
+// impl<T: GenGroup> Add<&Group<T>> for Group<T> {
+//   type Output = Self;
+
+//   fn add(self, rhs: &Self) -> Self {
+//     Group(self.0.add_ref(&rhs.0))
+//   }
+// }
+
+
+// #[derive(Clone, Copy)]
+// struct GroupRepr(usize);
+
+// trait GroupExpr {
+//   fn as_group_repr(&self) -> GroupRepr;
+// }
+
+// struct GroupSum<A: GroupExpr, B: GroupExpr>(pub A, pub B);
+
+// impl Add<GroupRepr> for GroupRepr {
+//   type Output = GroupSum<G, H>;
+
+//   fn add(self, rhs: H) -> Self::Output {
+//       todo!()
+//   }
+// }
+

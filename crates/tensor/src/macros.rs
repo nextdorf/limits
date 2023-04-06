@@ -31,3 +31,35 @@ macro_rules! forward {
       )*};
 }
 
+
+#[macro_export]
+/// Implements Deref Coersion for a trivial wrapper over some generic wrapper trait
+/// 
+/// ```
+/// trait GenericWrapper {
+///   //...
+/// }
+/// 
+/// struct Wrapper<T: GenericWrapper>(pub T);
+/// 
+/// wrapper_deref!(GenericWrapper, Wrapper);
+/// ```
+macro_rules! wrapper_deref {
+  ($gen:tt, $t:tt) => (
+    impl<T: $gen> std::ops::Deref for $t<T> {
+      type Target = T;
+      
+      fn deref(&self) -> &T {
+        &self.0
+      }
+    }
+    
+    impl<T: $gen> std::ops::DerefMut for $t<T> {
+      fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+      }
+    }
+  )
+}
+
+

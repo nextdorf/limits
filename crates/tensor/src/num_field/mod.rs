@@ -1,9 +1,9 @@
-use std::ops::Neg;
+mod field_impl;
+use num_traits::{One, NumOps, real::Real};
+use crate::GenGroup;
 
-use num_traits::{Zero, One, NumOps, real::Real};
 
-
-pub trait NumField: Copy + Zero + One + NumOps + Neg<Output = Self> + From<Self::Real> {
+pub trait NumField: Copy + One + NumOps + GenGroup + From<Self::Real> {
   type Real: Real;
 
   /// Returns the smallest positive, normalized value that this type can represent.

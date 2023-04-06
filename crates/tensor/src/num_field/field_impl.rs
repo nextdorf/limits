@@ -6,6 +6,7 @@ use crate::forward;
 use super::NumField;
 
 
+#[macro_export]
 macro_rules! real_num_field_impl {
   ($($t:ty)*) => ($(
     impl NumField for $t {
@@ -62,6 +63,7 @@ macro_rules! real_num_field_impl {
 }
 real_num_field_impl! { f32 f64 }
 
+#[macro_export]
 macro_rules! complex_num_field_impl {
   ($($t:ty)*) => ($(
     impl NumField for $t {
