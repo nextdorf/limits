@@ -154,68 +154,109 @@ Zur Konstruktion ist ein Vektorraum und ein Skalarprodukt nötig, sodass sich ei
 Für die Tensoren wäre es vermutlich sinnvoll mit einer Basis-unabhängigen Implementierung zu beginnen. Dazu braucht es neben der Kontraktion zweier Vektoren noch die Möglichkeit Indizes zu tauschen und (zumindest auf Hilberträumen) die Möglichkeit Indizes zu heben und zu senken.
 
 \subsection{Patterns für Supertraits und mathematischen Strukturen}
-Das Ziel des Crates ist es die mathematischen Objekte in Rust's Typsystem darzustellen. Um eine Klasse von mathematischen Objekten, wie Zahlenkörper oder Vektorräume, darzustellen muss für diese Klassen Traits implementiert werden. Die Forderung nach der Existenz bestimmter Funktionen auf diesen Traits kann über Supertraits definiert werden. Für ein Trait \texttt T, der bspw. eine kommutative Gruppe darstellt, ist es sinnvoll, dass \texttt T einen Supertrait für die Addition implementieren muss. Das Problem mit \lstinline[language=Rust, morekeywords={T}]{Add<T, Output = T>} %\texttt{Add<T, Output = T>}
-
-%\begin{lstlisting}[style = python]
-%import numpy as np
-%
-%def incmatrix(genl1,genl2):
-%	m = len(genl1)
-%	n = len(genl2)
-%	M = None #to become the incidence matrix
-%	VT = np.zeros((n*m,1), int)  #dummy variable
-%
-%	#compute the bitwise xor matrix
-%	M1 = bitxormatrix(genl1)
-%	M2 = np.triu(bitxormatrix(genl2),1)
-%
-%	for i in range(m-1):
-%		for j in range(i+1, m):
-%			[r,c] = np.where(M2 == M1[i,j])
-%			for k in range(len(r)):
-%				VT[(i)*n + r[k]] = 1;
-%				VT[(i)*n + c[k]] = 1;
-%				VT[(j)*n + r[k]] = 1;
-%				VT[(j)*n + c[k]] = 1;
-%
-%				if M is None:
-%					M = np.copy(VT)
-%				else:
-%					M = np.concatenate((M, VT), 1)
-%
-%				VT = np.zeros((n*m,1), int)
-%
-%	return M
-%\end{lstlisting}
-Check out \lstinline[style=python]{import numpy as np}
-
-\begin{lstlisting}[language=Rust, numbers=left, morekeywords={Field}]
-mod num_field;
-mod field_impl;
-pub mod ops;
-
-pub use num_field::*;
-use num_traits::Zero;
-use ops::VectorSpaceFullOps;
-
-/// YO
-pub trait VectorSpace: Zero + VectorSpaceFullOps<Self::Field> {
-	type Field: NumField;
+Das Ziel des Crates ist es die mathematischen Objekte in Rust's Typsystem darzustellen. Um eine Klasse von mathematischen Objekten, wie Zahlenkörper oder Vektorräume, darzustellen, müssen für diese Klassen Traits implementiert werden. Die Forderung nach der Existenz bestimmter Funktionen auf diesen Traits kann über Supertraits definiert werden. Für einen Trait \texttt T, der bspw. eine kommutative Gruppe darstellt, ist es sinnvoll, dass \texttt T einen Supertrait für die Addition implementieren muss. Allerdings stellt der Trait \lstinline[language=Rust, morekeywords={T}]|Add<T, Output = T>| ein Problem dar: \lstinline[language=Rust, morekeywords={T}]|_(T + &T) -> T|, \lstinline[language=Rust, morekeywords={T}]|_(&T + T) -> T| und \lstinline[language=Rust, morekeywords={T}]|_(&T + &T) -> T| könnten vermutlich effizienter implementiert werden. Insbesondere wenn es teuer ist \texttt T zu klonen oder zu konstruieren, kann das Ganze zu ungeahnt ineffizientem Code führen.\\
+Betrachte als Beispiel ein Polynom vom Grad $n$. Auf algebraisch abgeschlossenen Körpern, wie den komplexen Zahlen zum Beispiel, kann man jedes Polynom $p$ immer vollständig zerlegen:
+\begin{align*}
+p(x) = p_0 \prod_{k=1}^N (x - x_k)^{r_k} \text{ mit } \sum_{k=1}^N r_k = n
+\end{align*}
+Wenn man die Potenz in Multiplikationen zerlegt, dann kann man $y^r$ in $\ceil{\log_2(r)}$ einzelne Schritte zerlegen. In Spezialfällen sind weitere Optimisierungen möglich, aber die wollen wir hier ausklammern. Es sei:
+\begin{flalign*}
+\bulletspace
+\bullet\ & \Theta_{T+F} = \Theta(\lstinline[language=Rust, morekeywords={T, Field}]|<T as Add<Field, Output = T>>::add|) &&\\
+\bullet\ & \Theta_{T\cdot F} = \Theta(\lstinline[language=Rust, morekeywords={T, Field}]|<T as Mul<Field, Output = T>>::mul|) &&\\
+\bullet\ & \Theta_{T\cdot T} = \Theta(\lstinline[language=Rust, morekeywords={T, Field}]|<T as Mul<T, Output = T>>::mul|) &&
+\end{flalign*}
+Dann entspricht $x - x_k$ je einer Laufzeit von $\Theta_{T+F}$, $y^r$ entspricht $\ceil{\log_2(r)} \Theta_{T\cdot T}$, und $p_0 y_1 \cdot \dots \cdot y_N$ entspricht $(N-1) \Theta_{T\cdot T} + \Theta_{T\cdot F}$ und insgesamt:
+\begin{align}
+\Theta(p) = N\Theta_{T + F} + \big(N - 1 + \sum_{k=1}^N \ceil{\log_2(r_k)}\big) \Theta_{T\cdot T} + \Theta_{T\cdot F}
+\end{align}
+Würden wir allerdings die borrowed Parameter, anstatt owned Parameter wählen, dann müsste die Laufzeit $\Theta_{\text{new}}$ für das Klonen/Kopieren/Konstruieren mitberücksichtigt werden. Wir gehen davon aus, dass das Klonen in etwa genauso teuer ist wie das Konstruieren+Initialisieren anhand der referenzierten Werten. In der Praxis ist das wohl eher eine untere Schranke. Dann wäre:
+\begin{align}
+\Theta_* \to \Theta_* + \Theta_{\text{new}},\; \Theta(p) \to \Theta(p) + \big(2N + \sum_{k=1}^N \ceil{\log_2(r_k)}\big) \Theta_{\text{new}}
+\end{align}
+Einerseits will ich in meiner Library nicht einfach $\Theta_{\text{new}}$ für teure Typen vernachlässigen, wenn ich die Möglichkeit habe eine in-place Variante zu nutzen, andererseits will ich die Möglichkeit haben effizientere Varianten für out-of-place Varianten zu schreiben. Praktisch hieße das, dass ich für jeden dieser arithmetischen Supertraits alle 4 Kombinationen fordern müsste. Allerdings wird das Ganze sehr nervig, wenn man Constraints schreiben will und persönlich halte ich das für ein Code-Smell und Anti-Pattern.\\
+Technisch sauberer wäre es den Supertrait zu ignorieren und die entsprechenden Methoden im Trait \texttt T zu definieren. Allerdings hat man dann nicht mehr den syntaktischen Zucker um \lstinline[language=Rust]|a + b| anstelle von \lstinline[language=Rust]|a.add(b)| schreiben zu können. Sauber aber unhandlich. Mir sind einige Möglichkeiten eingefallen das Problem mit Kompromissen zu lösen:
+\begin{itemize}
+\item \textbf{Copyable only}\\
+Diese Lösung habe ich auf \href{https://crates.io}{crates.io} bei Crates mit ähnlichen Problemen am häufigsten angetroffen. Das nette am Copy-Trait ist nämlich, dass man eigentlich immer davon ausgehen kann, dass ein memcopy extrem billig ist. Außerdem ist er trivial, was insbesondere bedeutet, dass der Rust-Compiler sehr gut in der Lage ist potenzielle Optimierungen zu erkennen, sodass man \lstinline[language=Rust, morekeywords={T}]|T: Add| bedenkenlos als einzige Implementierung für die Addition wählen kann. Außerdem sind copyable Typen in der Regel auch klein. Das heißt selbst der theoretische Overhead ist im Worst-Case kaum relevant. Das Problem mit dieser ``Lösung'' ist natürlich, dass viele interessanten Typen schlicht nicht copyable sind. Dazu zählt bspw. jeder Typ mit Heap-Allokationen.
+\item \textbf{Constrained Newtype}\\
+Hier benutzt man im Grunde die oben angesprochene, technisch saubere Variante und verbindet das Ganze mit einem dediziertem Newtype. Da der Newtype ein konkreter Datentyp ist, kann er alle Traits so implementieren wie man das Ganze für richtig hält. Es entsteht kein Overhead und man macht keine Einbusen in der Handlichkeit außer, dass man den eigentlichen Datentypen, der den Trait \texttt{GenGroup} implementiert wrappen und unwrappen muss. Das kann den Lese- und Schreibfluss unterbrechen, wenn man oft zwischen Funktionen auf \texttt{T} und Funktionen auf \texttt{GenGroup} bzw. \texttt{Group} wechseln muss. Aber das kann man mithilfe von \texttt{Into}, \texttt{AsRef}, \dots auf ein Minimum beschränken. Ein Beispiel für Gruppen:
+\begin{lstlisting}[language=Rust, numbers=left, morekeywords={GenGroup, Group, T}]
+// groups_example.rs
+trait GenGroup {
+	fn add(self, other: Self) -> Self;
+	fn ref_add(&self, other: Self) -> Self;
+	fn add_ref(self, other: &Self) -> Self;
+	fn ref_add_ref(&self, other: &Self) -> Self;
+	
+	fn sub(self, other: Self) -> Self;
+	fn ref_sub(&self, other: Self) -> Self;
+	fn sub_ref(self, other: &Self) -> Self;
+	fn ref_sub_ref(&self, other: &Self) -> Self;
+	
+	fn neg(self) -> Self;
+	fn ref_neg(&self) -> Self;
+	
+	fn zero() -> Self;
 }
 
-/* sdhakjdh
-sadjla
-sdha */
-fn main() {
-	println!("Hello, world!");
+struct Group<T: GenGroup>(pub T);
+
+impl<T: GenGroup> Add<Group<T>> for Group<T> {
+	type Output = Group<T>;
+	
+	fn add(self, rhs: Self) -> Group<T> {
+		Group(self.0.add(rhs.0))
+	}
 }
 
-#[test]
-fn test_fn() {
-	1+1;
+impl<T: GenGroup> Add<&Group<T>> for Group<T> {
+	type Output = Group<T>;
+	
+	fn add(self, rhs: &Self) -> Self {
+		Group(self.0.add_ref(&rhs.0))
+	}
 }
 
+%*$\dots$*)
 \end{lstlisting}
+\item \textbf{Custom Control-Flow}\\
+Die Idee habe ich letztendlich nicht mehr ausgearbeitet, aber ich will sie trotzdem ansprechen. Im Grunde ist der Gedanke die Darstellung der Daten von der Logik zu trennen. Das kann man bspw. mit einem Execution-Graph erreichen. Konkret würde man die Daten, dann einer Kollektion als Wert hinzufügen und einen ``leichten'' Schlüsselwert für Rechnungen nutzen. Für diesen Schlüsselwert implementiert man Addition und so weiter. Das Endergebnis der Rechnung könnte man dann ``ausführen'' wobei die Kollektion übergeben wird. Die Idee ist nicht uninteressant und ermöglicht bspw. symbolische Berechnungen, aber verkompliziert nur alles, da man mehr Abstraktion und Komplexität hinzufügt.
+\item \textbf{Macros}\\
+Eine Reihe von Rust-Veteranen empfehlen bei solchen Problemen gerne die extensive Nutzung von Makros. An sich ist das eine legitime Option, aber mein Wissen über Makros ist auf der einen Hand eher oberflächlich, und auf der anderen Hand ist das Debuggen von Meta-Code immer nervig und anstrengend. Auch bin ich einfach kein Fan von ``Makro''-Libraries. Makros sind meiner Meinung nach eher dazu dar um Boilerplate-Code zu verstecken und nicht um Software zu designen.
+\item \textbf{If it works, it works}\\
+\textit{``Bro, du machst dir da zu viele Gedanken. Hier, mach das doch einfach mit den Referenzen. Das kompiliert doch. Das passt schon. Ist doch OK. Man kann doch hinterher immer noch mal eben eine bessere Version schreiben. Erstmal mit dem Einfachen anfangen. Du machst dir das alles zu schwer. Bill Gates sagte mal er stellt lieber faule Programmierer ein, weil [\dots]''}\\
+\textbf{Nein!}
+\end{itemize}
+Anhand der Erklärung wird klar, dass ich ``Constrained Newtypes'' für die sinnvollste Lösung halte.
+
+%\begin{lstlisting}[language=Rust, numbers=left, morekeywords={Field}]
+%mod num_field;
+%mod field_impl;
+%pub mod ops;
+%
+%pub use num_field::*;
+%use num_traits::Zero;
+%use ops::VectorSpaceFullOps;
+%
+%/// YO
+%pub trait VectorSpace: Zero + VectorSpaceFullOps<Self::Field> {
+%	type Field: NumField;
+%}
+%
+%/* sdhakjdh
+%sadjla
+%sdha */
+%fn main() {
+%	println!("Hello, world!");
+%}
+%
+%#[test]
+%fn test_fn() {
+%	1+1;
+%}
+%
+%\end{lstlisting}
 
 
 \include{tensor-crate-docs-appendix}
