@@ -5,7 +5,7 @@ pub mod group;
 
 pub use group::{GenGroup, Group};
 pub use num_field::NumField;
-pub use vector_space::GenVectorSpace;
+pub use vector_space::{GenVectorSpace, VectorSpace};
 
 
 

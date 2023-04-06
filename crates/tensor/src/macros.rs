@@ -35,6 +35,7 @@ macro_rules! forward {
 #[macro_export]
 /// Implements Deref Coersion for a trivial wrapper over some generic wrapper trait
 /// 
+/// It can either be used to wrap a trait:
 /// ```
 /// trait GenericWrapper {
 ///   //...
@@ -44,9 +45,20 @@ macro_rules! forward {
 /// 
 /// wrapper_deref!(GenericWrapper, Wrapper);
 /// ```
+/// 
+/// or tt can either be used to wrap specific type:
+/// ```
+/// trait MyType {
+///   //...
+/// }
+/// 
+/// struct Wrapper(pub MyType);
+/// 
+/// wrapper_deref!(MyType, Wrapper);
+/// ```
 macro_rules! wrapper_deref {
-  ($gen:tt, $t:tt) => (
-    impl<T: $gen> std::ops::Deref for $t<T> {
+  ($gen:tt, $w:tt) => (
+    impl<T: $gen> std::ops::Deref for $w<T> {
       type Target = T;
       
       fn deref(&self) -> &T {
@@ -54,12 +66,12 @@ macro_rules! wrapper_deref {
       }
     }
     
-    impl<T: $gen> std::ops::DerefMut for $t<T> {
+    impl<T: $gen> std::ops::DerefMut for $w<T> {
       fn deref_mut(&mut self) -> &mut T {
         &mut self.0
       }
     }
-  )
+  );
 }
 
 

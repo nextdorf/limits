@@ -1,4 +1,4 @@
-use std::ops::{Mul, MulAssign};
+use std::ops::{Mul, MulAssign, Div, DivAssign};
 
 use num_complex::{Complex32, Complex64};
 
@@ -23,6 +23,20 @@ impl<T: GenVectorSpace> MulAssign<T::Field> for VectorSpace<T> {
   }
 }
 
+impl<T: GenVectorSpace> Div<T::Field> for VectorSpace<T> {
+  type Output = VectorSpace<T>;
+
+  fn div(self, rhs: T::Field) -> VectorSpace<T> {
+    VectorSpace(self.0 / rhs)
+  }
+}
+
+impl<T: GenVectorSpace> DivAssign<T::Field> for VectorSpace<T> {
+  fn div_assign(&mut self, rhs: T::Field) {
+    self.div_scalar_assign(rhs)
+  }
+}
+
 
 #[macro_export]
 macro_rules! vector_space_impl {
@@ -32,6 +46,10 @@ macro_rules! vector_space_impl {
 
       fn mul_scalar_assign(&mut self, rhs: Self::Field) {
         *self *= rhs
+      }
+
+      fn div_scalar_assign(&mut self, rhs: Self::Field) {
+        *self /= rhs
       }
     }
   )*)
