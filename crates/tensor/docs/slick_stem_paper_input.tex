@@ -18,6 +18,8 @@
 
 \usepackage[backend=bibtex,style=authoryear,natbib=true]{biblatex} % Use the bibtex backend with the authoryear citation style (which resembles APA)
 \usepackage{listings}
+%\usepackage{enumerate}
+\usepackage[shortlabels]{enumitem}
 
 \usepackage[autostyle=true]{csquotes} % Required to generate language-dependent quotes in the bibliography
 \usepackage{color}
@@ -76,9 +78,11 @@ basicstyle=\ttm,
 morekeywords={
 	Add, AddAssign, Any, AsciiExt, AsInner, AsInnerMut, AsMut, AsRawFd, AsRawHandle, AsRawSocket, AsRef, Binary, BitAnd, BitAndAssign, Bitor, BitOr, BitOrAssign, BitXor, BitXorAssign, Borrow, BorrowMut, Boxed, BoxPlace, BufRead, BuildHasher, CastInto, CharExt, Clone, CoerceUnsized, CommandExt, Copy, Debug, DecodableFloat, Default, Deref, DerefMut, DirBuilderExt, DirEntryExt, Display, Div, DivAssign, DoubleEndedIterator, DoubleEndedSearcher, Drop, EnvKey, Eq, Error, ExactSizeIterator, ExitStatusExt, Extend, FileExt, FileTypeExt, Float, Fn, FnBox, FnMut, FnOnce, Freeze, From, FromInner, FromIterator, FromRawFd, FromRawHandle, FromRawSocket, FromStr, FullOps, FusedIterator, Generator, Hash, Hasher, Index, IndexMut, InPlace, Int, Into, IntoCow, IntoInner, IntoIterator, IntoRawFd, IntoRawHandle, IntoRawSocket, IsMinusOne, IsZero, Iterator, JoinHandleExt, LargeInt, LowerExp, LowerHex, MetadataExt, Mul, MulAssign, Neg, Not, Octal, OpenOptionsExt, Ord, OsStrExt, OsStringExt, Packet, PartialEq, PartialOrd, Pattern, PermissionsExt, Place, Placer, Pointer, Product, Put, RangeArgument, RawFloat, Read, Rem, RemAssign, Seek, Shl, ShlAssign, Shr, ShrAssign, Sized, SliceConcatExt, SliceExt, SliceIndex, Stats, Step, StrExt, Sub, SubAssign, Sum, Sync, TDynBenchFn, Terminal, Termination, ToOwned, ToSocketAddrs, ToString, Try, TryFrom, TryInto, UnicodeStr, Unsize, UpperExp, UpperHex, WideInt, Write
 },
-morekeywords={num_field, field_impl, ops, num_traits, Zero, VectorSpace, VectorSpaceFullOps, NumField, Output},
+morekeywords={
+	num_field, field_impl, Field, num_traits, Zero, VectorSpace, GenVectorSpace, Group, GenGroup, NumField, Output, std, T
+},
 morekeywords=[2]{
-	break, continue, else, for, if, in, loop, match, return, while, as, const, let, move, mut, ref, static, dyn, enum, fn, impl, Self, self, struct, trait, type, union, use, where, crate, extern, mod, pub, super, unsafe, abstract, alignof, become, box, do, final, macro, offsetof, override, priv, proc, pure, sizeof, typeof, unsized, virtual, yield
+	break, continue, else, for, if, in, loop, match, return, while, as, const, let, move, mut, ref, static, dyn, enum, fn, impl, Self, self, struct, trait, type, union, use, where, crate, extern, mod, pub, super, unsafe, abstract, alignof, become, box, do, final, macro, offsetof, override, priv, proc, pure, sizeof, typeof, unsized, virtual, yield, macro_rules!
 },
 keywordstyle=\ttb\color[RGB]{0,144,64},
 keywordstyle=[2]\ttb\color[RGB]{0,0,192},

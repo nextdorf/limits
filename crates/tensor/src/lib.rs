@@ -9,3 +9,7 @@ pub use vector_space::{GenVectorSpace, VectorSpace};
 
 
 
+// trait 
+
+
+
