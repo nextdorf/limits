@@ -1,4 +1,3 @@
-mod group_impl;
 use std::{ops::{Add, Neg, Sub}, mem::replace};
 use num_traits::Zero;
 
@@ -25,10 +24,4 @@ pub trait GenGroup: Zero + Add<Self, Output = Self> + Sub<Self, Output = Self> +
 
   fn ref_neg(&self) -> Self;
 }
-
-
-pub struct Group<T: GenGroup>(pub T);
-
-
-
 

@@ -1,12 +1,16 @@
 [package]
-name = "tensor"
+name = "tensor-traits"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# num-traits = "*"
-# num-complex = "*"
-tensor-derive = { path = "tensor-derive"}
-tensor-traits = { path = "tensor-traits"}
+num-traits = "*"
+num-complex = { version = "*", optional = true}
+
+
+[features]
+default = ["complex"]
+complex = ["dep:num-complex"]
+

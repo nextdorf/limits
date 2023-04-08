@@ -180,7 +180,7 @@ Technisch sauberer wäre es den Supertrait zu ignorieren und die entsprechenden 
 \item \textbf{Copyable only}\\
 Diese Lösung habe ich auf \href{https://crates.io}{crates.io} bei Crates mit ähnlichen Problemen am häufigsten angetroffen. Das nette am Copy-Trait ist nämlich, dass man eigentlich immer davon ausgehen kann, dass ein memcopy extrem billig ist. Außerdem ist er trivial, was insbesondere bedeutet, dass der Rust-Compiler sehr gut in der Lage ist potenzielle Optimierungen zu erkennen, sodass man \lstinline[language=Rust]|T: Add| bedenkenlos als einzige Implementierung für die Addition wählen kann. Außerdem sind copyable Typen in der Regel auch klein. Das heißt selbst der theoretische Overhead ist im Worst-Case kaum relevant. Das Problem mit dieser ``Lösung'' ist natürlich, dass viele interessanten Typen schlicht nicht copyable sind. Dazu zählt bspw. jeder Typ mit Heap-Allokationen.
 \item \textbf{Constrained Newtype}\\
-Hier benutzt man im Grunde die oben angesprochene, technisch saubere Variante und verbindet das Ganze mit einem dediziertem Newtype. Da der Newtype ein konkreter Datentyp ist, kann er alle Traits so implementieren wie man das Ganze für richtig hält. Es entsteht kein Overhead und man macht keine Einbusen in der Handlichkeit außer, dass man den eigentlichen Datentypen, der den Trait \texttt{GenGroup} implementiert wrappen und unwrappen muss. Das kann den Lese- und Schreibfluss unterbrechen, wenn man oft zwischen Funktionen auf \texttt{T} und Funktionen auf \texttt{GenGroup} bzw. \texttt{Group} wechseln muss. Aber das kann man mithilfe von \texttt{Into}, \texttt{AsRef}, \dots auf ein Minimum beschränken. Ein Beispiel für Gruppen:
+Hier benutzt man im Grunde die oben angesprochene, technisch saubere Variante und verbindet das Ganze mit einem dediziertem Newtype. Da der Newtype ein konkreter Datentyp ist, kann er alle Traits so implementieren wie man das Ganze für richtig hält. Es entsteht kein Overhead und man macht keine Einbusen in der Handlichkeit außer, dass man den eigentlichen Datentypen, der den Trait \texttt{GenGroup} implementiert wrappen und unwrappen muss. Das kann den Lese- und Schreibfluss unterbrechen, wenn man oft zwischen Funktionen auf \texttt{T} und Funktionen auf \texttt{GenGroup} bzw. \texttt{Group} wechseln muss. Aber das kann man mithilfe von \texttt{Into}, \texttt{Borrow}, \dots auf ein Minimum beschränken. Ein Beispiel für Gruppen:
 \begin{lstlisting}[language=Rust, numbers=left]
 // groups_example.rs
 trait GenGroup {
@@ -236,7 +236,7 @@ In diesem Abschnitt will ich das Pattern präzise definieren, das ich im Tensors
 %\subsubsection*{Durchgesetzte Patterns}
 \begin{enumerate}[1)]
 \item \textbf{Wrap via Newtypes if not \texttt{Copy}}\\
-Angelehnt an \href{https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html}{Newtype}. Falls der Trait \texttt{Copy} fordert, siehe \ref{Copy}. Andernfalls wird für den Trait \lstinline[language=Rust, morekeywords={GenX}]|GenX| der Wrapper \lstinline[language=Rust, morekeywords={GenX, X, T}]|struct X<T: GenX>(pub T)| definiert.
+Angelehnt an \href{https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html}{Newtype}. Falls der Trait \texttt{Copy} fordert, siehe \ref{Copy}. Andernfalls wird für den Trait \lstinline[language=Rust, morekeywords={GenX}]|GenX| der Wrapper \lstinline[language=Rust, morekeywords={GenX, X, T}]|struct X<T: GenX>(pub T)| definiert. Newtypes-Abstraktion sind insbesondere kostenlos und vereinfachen das Arbeiten mit den Typen.
 \item \textbf{Wrapper sind Smartpointer}\\
 Übernommen von \href{https://rust-unofficial.github.io/patterns/idioms/deref.html}{Collections are smart pointers}. Alle Wrapper im Crate dienen vor allem dem Zweck die Abstraktionen der Traits über konkrete Datentypen darzustellen. Von daher implementieren sie alle den \texttt{Deref}-Trait.
 \item \textbf{Dependency Inversion Principle}\\
@@ -257,9 +257,9 @@ trait GenVectorSpace: GenGroup + %*$\dots$*) {
 
 macro_rules! wrapped_group_impl {
 	($gen:tt, $w:tt) => (
-		impl<T: $gen> std::ops::Add<$w<T>> for $w<T> {/*%*$\cdots$*)*/}
+		impl<T: $gen> Add<$w<T>> for $w<T> {/*%*$\cdots$*)*/}
 
-		impl<T: $gen, R: AsRef<$w<T>>> std::ops::Add<R> for $w<T> {/*%*$\cdots$*)*/}
+		impl<T: $gen, R: Borrow<$w<T>>> Add<R> for $w<T> {/*%*$\cdots$*)*/}
 
 		/* %*$\cdots$*) */
 	)
