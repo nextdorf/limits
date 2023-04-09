@@ -9,7 +9,7 @@ pub use group::Group;
 
 pub use tensor_traits::GenGroup;
 
-pub use tensor_derive::WrapperDeref;
+pub use tensor_derive::{WrapperDeref, GroupWrapper};
 
 // trait 
 

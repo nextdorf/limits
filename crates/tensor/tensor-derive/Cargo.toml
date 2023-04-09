@@ -11,5 +11,6 @@ proc-macro = true
 [dependencies]
 syn = "*"
 quote = "*"
+num-traits = "*"
 tensor-traits = { path = "../tensor-traits"}
 
