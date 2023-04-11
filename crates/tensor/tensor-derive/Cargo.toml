@@ -9,7 +9,7 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = "*"
+syn = { version = "*", features = ["full"]}
 quote = "*"
 num-traits = "*"
 tensor-traits = { path = "../tensor-traits"}

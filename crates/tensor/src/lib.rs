@@ -3,7 +3,7 @@
 // pub mod vector_space;
 pub mod group;
 
-pub use group::Group;
+// pub use group::Group;
 // pub use num_field::NumField;
 // pub use vector_space::{GenVectorSpace, VectorSpace};
 

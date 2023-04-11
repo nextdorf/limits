@@ -9,6 +9,7 @@ pub struct OptField<T> {
 
 pub struct AttrRepr {
   pub zero_path: OptField<syn::Path>,
+  pub gen_group_path: OptField<syn::Path>,
 }
 
 
@@ -35,8 +36,9 @@ impl AttrRepr {
         if let Some(ident) = xs.path.get_ident() {
           // println!("1: {}", xs.to_token_stream());
           match ident.to_string().as_str() {
-            "num_traits_export" => res.zero_path.set(xs.parse_args().unwrap()),
-            s => println!("Unknown: {}", s)
+            "num_traits_zero_path" => res.zero_path.set(xs.parse_args().unwrap()),
+            "gen_group_path" => res.gen_group_path.set(xs.parse_args().unwrap()),
+            s => eprintln!("Unknown: {}", s)
           }
         }
       }
@@ -48,7 +50,8 @@ impl AttrRepr {
 impl Default for AttrRepr {
   fn default() -> Self {
     Self {
-      zero_path: OptField::new(parse_quote!(tensor::group::Zero))
+      zero_path: OptField::new(parse_quote!(::tensor::group::Zero)),
+      gen_group_path: OptField::new(parse_quote!(::tensor::GenGroup)),
     }
   }
 }

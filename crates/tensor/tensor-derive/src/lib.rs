@@ -1,6 +1,6 @@
 mod group;
 mod wrappers;
-mod reexport;
+pub(crate) mod util;
 
 use proc_macro::TokenStream;
 use syn::parse_macro_input;
@@ -30,7 +30,12 @@ pub fn group_wrapper(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn num_traits_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn num_traits_zero_path(_attr: TokenStream, item: TokenStream) -> TokenStream {
+  item
+}
+
+#[proc_macro_attribute]
+pub fn gen_group_path(_attr: TokenStream, item: TokenStream) -> TokenStream {
   item
 }
 

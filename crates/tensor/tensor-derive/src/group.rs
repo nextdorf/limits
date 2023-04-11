@@ -1,12 +1,51 @@
 use proc_macro::TokenStream;
-use syn::{DeriveInput, GenericParam, parse_quote, TypeParam};
-use quote::quote;
+use syn::{DeriveInput, GenericParam, parse_quote, TypeParam, TypeParamBound, TraitBound};
+use quote::{quote, ToTokens};
 
-use crate::reexport::AttrRepr;
+use crate::util::{attr_repr::AttrRepr, data_quote::{DataQuote, DataQuotePaths}, self};
+
+
 
 
 #[inline]
 pub(crate) fn group_wrapper_impl(input: &DeriveInput) -> TokenStream {
+  let attrs = AttrRepr::new_with(input.attrs.iter());
+  // let attrs = AttrRepr::default();
+  let zero_trait = attrs.zero_path.get();
+  let gen_group = attrs.gen_group_path.get();
+
+  // Group
+  let ident = &input.ident;
+  // (<T: GenGroup>, <T>, None)
+  let (impl_gen, type_gen, where_clause) = input.generics.split_for_impl();
+
+  let self_path = parse_quote!(self);
+  let rhs_path = parse_quote!(rhs);
+  let t_idents = DataQuotePaths::t_idents_from_yoo(gen_group, input.generics.params.iter());
+  let path_choice = DataQuotePaths {
+    t_idents,
+    t_fn_path: parse_quote!(add),
+    default_fn_path: parse_quote!(add0),
+  };
+  let add_expr = DataQuote::quote_own_own(&self_path, &rhs_path, &path_choice, ident, &input.data);
+
+  let own_rhs_quote = quote! {
+    // Addition +++++++++++++++++++++++++++++++++++++++++++
+    impl #impl_gen std::ops::Add<#ident #type_gen> for #ident #type_gen #where_clause {
+      type Output = #ident #type_gen;
+    
+      fn add(self, rhs: #ident #type_gen) -> #ident #type_gen {
+        // #ident(self.0.add(rhs.0))
+        #add_expr
+      }
+    }
+  };
+
+  own_rhs_quote.into()
+}
+
+#[inline]
+pub(crate) fn _group_wrapper_impl(input: &DeriveInput) -> TokenStream {
   let attrs = AttrRepr::new_with(input.attrs.iter());
   // let attrs = AttrRepr::default();
   let zero_trait = attrs.zero_path.get();
@@ -152,9 +191,11 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput) -> TokenStream {
     }
   }.into();
 
-  <_ as std::iter::FromIterator<TokenStream>>::from_iter(
-    [own_rhs_quote, bor_rhs_quote, unary_quote]
-  )
+  <_ as std::iter::FromIterator<TokenStream>>::from_iter([
+    own_rhs_quote,
+    bor_rhs_quote,
+    unary_quote
+  ])
 }
 
 
