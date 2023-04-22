@@ -1,7 +1,11 @@
 use quote::{quote, ToTokens};
-use syn::{Path, Data, Ident, DataStruct, parse_quote, Fields, FieldsNamed, punctuated::Punctuated, GenericParam, TypeParam, TraitBound, TypeParamBound, parse::Parse};
+use syn::{Path, Data, Ident, DataStruct, parse_quote, Fields, FieldsNamed, punctuated::Punctuated, GenericParam, TypeParam, TraitBound, TypeParamBound, parse::Parse, FieldsUnnamed};
 
-pub struct DataQuote;
+pub enum DataQuote {
+  OwnOwn,
+  RefOwn,
+  MutOwn,
+}
 
 pub struct DataQuotePaths {
   pub t_idents: Vec<Ident>,
@@ -13,72 +17,116 @@ type TokenStream = quote::__private::TokenStream;
 
 
 impl DataQuote {
-  pub fn quote_own_own(lhs_path: &Path, rhs_path: &Path, paths: &DataQuotePaths, ident: &Ident, data: &Data) -> TokenStream {
+  pub fn quote(&self, lhs_path: &Path, rhs_path: &Path, paths: &DataQuotePaths, ident: &Ident, data: &Data) -> TokenStream {
     match data {
       Data::Struct(DataStruct {fields, ..}) => {
-        match fields {
-          Fields::Named(FieldsNamed {named, ..}) => {
+        match (fields, self.in_place()) {
+          (Fields::Named(FieldsNamed {named, ..}), false) => {
             let mut fields = Punctuated::<syn::FieldValue, syn::Token![,]>::new();
             for n in named {
               let val = n.ident.as_ref().unwrap();
-              fields.push(Self::resolve_field(paths, &n.ty, val, lhs_path, rhs_path));
-              // if let syn::Type::Path(p) = &n.ty {
-              //   let fn_path = paths.select_path_for(&p.path).to_token_stream();
-              //   fields.push(parse_quote!(#val: #lhs_path.#val.#fn_path(#rhs_path.#val)));
-              // }
+              let (a, b) = self.resolve_field_named(paths, &n.ty, val, lhs_path, rhs_path);
+              fields.push(parse_quote!(#a: #b));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
-            quote! {
-              #ident { #fields }
-            }
+            quote!(#ident { #fields })
           },
-          Fields::Unnamed(_) => panic!("Named or units"),
-          Fields::Unit => ident.to_token_stream(),
+          (Fields::Unnamed(FieldsUnnamed { unnamed, .. }), false) => {
+            let mut fields = Punctuated::<syn::Expr, syn::Token![,]>::new();
+            for (i, n) in unnamed.iter().enumerate() {
+              let idx = syn::Index::from(i);
+              fields.push(self.resolve_field_unnamed(paths, &n.ty, &idx, lhs_path, rhs_path));
+            }
+            // println!("{:?}", fields.iter().collect::<Vec<_>>());
+            quote!(#ident ( #fields ))
+          },
+          (Fields::Named(FieldsNamed {named, ..}), true) => {
+            let mut assignments = Punctuated::<syn::Expr, syn::Token![; ]>::new();
+            for n in named {
+              let val = n.ident.as_ref().unwrap();
+              let (_, b) = self.resolve_field_named(paths, &n.ty, val, lhs_path, rhs_path);
+              assignments.push(b);
+            }
+            // println!("{:?}", fields.iter().collect::<Vec<_>>());
+            assignments.to_token_stream()
+          },
+          (Fields::Unnamed(FieldsUnnamed { unnamed, .. }), true) => {
+            let mut assignments = Punctuated::<syn::Expr, syn::Token![; ]>::new();
+            for (i, n) in unnamed.iter().enumerate() {
+              let idx = syn::Index::from(i);
+              assignments.push(self.resolve_field_unnamed(paths, &n.ty, &idx, lhs_path, rhs_path));
+            }
+            // println!("{:?}", fields.iter().collect::<Vec<_>>());
+            assignments.to_token_stream()
+          },
+          (Fields::Unit, false) => ident.to_token_stream(),
+          (Fields::Unit, true) => TokenStream::new(),
         }
       },
       _ => panic!("Use structs")
     }
   }
 
-  fn resolve_field<'a>(paths: &'a DataQuotePaths, ty: &syn::Type, val: &Ident, lhs: &Path, rhs: &Path) -> syn::FieldValue {
-    let (a, b): (Path, syn::Expr) = Self::resolve_field_rec(paths, ty, val, lhs, rhs);
-    // panic!("{}: {}", a.to_token_stream(), b.to_token_stream());
-    parse_quote!(#a: #b)
+  fn resolve_field_named<'a>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &Ident, lhs: &Path, rhs: &Path) -> (Path, syn::Expr) {
+    self.resolve_field_rec(paths, ty, val, lhs, rhs)
   }
 
-  fn resolve_field_rec<'a, P: Parse, Q: Parse>(paths: &'a DataQuotePaths, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> (P, Q)
+  fn resolve_field_unnamed<'a>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &syn::Index, lhs: &Path, rhs: &Path) -> syn::Expr {
+    self.resolve_field_rec::<syn::Index, _>(paths, ty, val, lhs, rhs).1
+  }
+
+  fn resolve_field_rec<'a, P: Parse, Q: Parse>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> (P, Q)
   {
+    let lhs_val = match self {
+      DataQuote::OwnOwn => quote!(#lhs.#val),
+      DataQuote::RefOwn => quote!((&#lhs.#val)),
+      DataQuote::MutOwn => quote!((&mut #lhs.#val)),
+    };
+    
     let parsed_val = match ty {
       syn::Type::Array(xs) => {
         let len = &xs.len;
-        let x_type_path = xs.elem.to_token_stream();
-        let x_type_path: syn::TypePath = parse_quote!(#x_type_path);
-        let fn_path = paths.select_path_for(&x_type_path.path).to_token_stream();
+        let x_type = xs.elem.to_token_stream();
+        // let x_type: syn::Type = parse_quote!(#x_type);
+        let x_type: syn::TypePath = parse_quote!(#x_type);
+        let fn_path = paths.select_path_for(&x_type.path).to_token_stream();
         // Self::resolve_field_rec(paths, ty, val, lhs, rhs)
-        parse_quote!({
-          let lhs_iter = #lhs.#val.into_iter();
-          let rhs_iter = #rhs.#val.into_iter();
-          let mut res_iter = lhs_iter.zip(rhs_iter)
-            .map(|(x, y)| x.#fn_path(y));
-          [(); #len].map(|()| res_iter.next().unwrap())
-        })
+
+        if self.in_place() {
+          parse_quote!({
+            let lhs_iter = #lhs_val.into_iter();
+            let rhs_iter = #rhs.#val.into_iter();
+            for (x, y) in lhs_iter.zip(rhs_iter) {
+              x.#fn_path(y)
+            }
+          })
+        } else {
+          parse_quote!({
+            let lhs_iter = #lhs_val.into_iter();
+            let rhs_iter = #rhs.#val.into_iter();
+            let mut res_iter = lhs_iter.zip(rhs_iter)
+            // .map(|(x, y)| #x_fn_y);
+              .map(|(x, y)| x.#fn_path(y));
+            [(); #len].map(|()| res_iter.next().unwrap())
+          })
+        }
       },
       syn::Type::Path(p) => {
         let fn_path = paths.select_path_for(&p.path).to_token_stream();
         // let r: TokenStream = parse_quote!(#val: #lhs.#val.#fn_path(#rhs.#val));
         // panic!("{r}");
-        parse_quote!(#lhs.#val.#fn_path(#rhs.#val))
+        parse_quote!(#lhs_val.#fn_path(#rhs.#val))
       },
       syn::Type::Tuple(t) => {
         let res = t.elems
           .iter()
           .enumerate()
-          .map(|(i, t)| Self::resolve_field_rec::<TokenStream, syn::Expr>(
+          .map(|(i, t)| self.resolve_field_rec::<TokenStream, syn::Expr>(
               paths,
               t,
               &syn::Index::from(i),
-              &parse_quote!(#lhs.#val) as &TokenStream,
-              &parse_quote!(#rhs.#val) as &TokenStream
+              &quote!(#lhs.#val),
+              &quote!(#rhs.#val)
             ).1
           ).collect::<Punctuated::<_, syn::Token![,]>>();
         // let res = Punctuated::<_, Token![,]>::from_iter(res);
@@ -88,6 +136,13 @@ impl DataQuote {
       _ => panic!("Not implementation for case `{}`", ty.to_token_stream().to_string()),
     };
     (parse_quote!(#val), parsed_val)
+  }
+
+  pub fn in_place(&self) -> bool {
+    match self {
+      Self::OwnOwn | Self::RefOwn => false,
+      Self::MutOwn => true,
+    }
   }
 }
 
@@ -104,7 +159,7 @@ impl DataQuotePaths {
     &self.default_fn_path
   }
 
-  pub fn t_idents_from_yoo<'a>(path: &Path, params: impl Iterator<Item = &'a GenericParam>) -> Vec<Ident> {
+  pub fn t_idents_from<'a>(path: &Path, params: impl Iterator<Item = &'a GenericParam>) -> Vec<Ident> {
     let cmp_path = path;
     let mut t_idents = Vec::new();
     for f in params {

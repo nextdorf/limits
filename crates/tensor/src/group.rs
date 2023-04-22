@@ -3,9 +3,10 @@ pub use tensor_derive::{PlainGroupWrapper};
 use crate::{GenGroup, WrapperDeref, GroupWrapper};
 pub use num_traits::Zero;
 
-// #[derive(/*WrapperDeref,*/ GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-// #[num_traits_zero_path(Zero)]
-// pub struct Group<T: GenGroup>(pub T);
+#[derive(/*WrapperDeref,*/ GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[gen_group_path(GenGroup)]
+#[num_traits_zero_path(Zero)]
+pub struct Group<T: GenGroup>(pub T);
 
 #[derive(GroupWrapper)]
 // #[num_traits_zero_path(Zero)]
@@ -14,13 +15,16 @@ struct MultiGroup<T: GenGroup> {
   a: (T, T),
   b: T,
   c: T,
-  d: [T; qq()]
+  d: Group<T>,
+  e: [T; qq()],
 }
 const fn qq() -> usize {
   5
 }
 struct NType(pub i32);
 fn qqq() -> [NType; 4] {
+  // let a = (5,).0;
+
   let a = [1,2,3].map(NType);
   let b = [4,5,6].map(NType);
   let b = &b;

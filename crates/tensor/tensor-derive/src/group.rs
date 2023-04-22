@@ -21,13 +21,31 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput) -> TokenStream {
 
   let self_path = parse_quote!(self);
   let rhs_path = parse_quote!(rhs);
-  let t_idents = DataQuotePaths::t_idents_from_yoo(gen_group, input.generics.params.iter());
+  let t_idents = DataQuotePaths::t_idents_from(gen_group, input.generics.params.iter());
+  // panic!("{:?}", t_idents);
+
   let path_choice = DataQuotePaths {
     t_idents,
     t_fn_path: parse_quote!(add),
-    default_fn_path: parse_quote!(add0),
+    // default_fn_path: parse_quote!(xxxxxxx),
+    default_fn_path: parse_quote!(add),
   };
-  let add_expr = DataQuote::quote_own_own(&self_path, &rhs_path, &path_choice, ident, &input.data);
+  let add_expr = DataQuote::OwnOwn.quote(&self_path, &rhs_path, &path_choice, ident, &input.data);
+
+  let path_choice = DataQuotePaths {
+    t_fn_path: parse_quote!(ref_add),
+    ..path_choice
+  };
+  let ref_add_expr = DataQuote::RefOwn.quote(&self_path, &rhs_path, &path_choice, ident, &input.data);
+
+  let path_choice = DataQuotePaths {
+    t_fn_path: parse_quote!(add_assign),
+    default_fn_path: parse_quote!(add_assign),
+    ..path_choice
+  };
+  let add_assign_expr = DataQuote::MutOwn.quote(&self_path, &rhs_path, &path_choice, ident, &input.data);
+
+  // panic!("{}", add_assign_expr);
 
   let own_rhs_quote = quote! {
     // Addition +++++++++++++++++++++++++++++++++++++++++++
@@ -39,6 +57,23 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput) -> TokenStream {
         #add_expr
       }
     }
+
+    impl #impl_gen std::ops::Add<#ident #type_gen> for &#ident #type_gen #where_clause {
+      type Output = #ident #type_gen;
+    
+      fn add(self, rhs: #ident #type_gen) -> #ident #type_gen {
+        // #ident(self.0.ref_add(rhs.0))
+        #ref_add_expr
+      }
+    }
+
+    impl #impl_gen std::ops::AddAssign<#ident #type_gen> for #ident #type_gen #where_clause {
+      fn add_assign(&mut self, rhs: #ident #type_gen) {
+        // self.0.add_assign(rhs.0)
+        #add_assign_expr
+      }
+    }
+
   };
 
   own_rhs_quote.into()
