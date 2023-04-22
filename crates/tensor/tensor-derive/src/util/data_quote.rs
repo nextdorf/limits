@@ -48,24 +48,27 @@ impl DataQuote {
 
   fn resolve_field_rec<'a, P: Parse, Q: Parse>(paths: &'a DataQuotePaths, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> (P, Q)
   {
-    match ty {
-      // syn::Type::Array(_) => todo!(),
-      // syn::Type::BareFn(_) => todo!(),
-      // syn::Type::Group(_) => todo!(),
-      // syn::Type::ImplTrait(_) => todo!(),
-      // syn::Type::Infer(_) => todo!(),
-      // syn::Type::Macro(_) => todo!(),
-      // syn::Type::Never(_) => todo!(),
+    let parsed_val = match ty {
+      syn::Type::Array(xs) => {
+        let len = &xs.len;
+        let x_type_path = xs.elem.to_token_stream();
+        let x_type_path: syn::TypePath = parse_quote!(#x_type_path);
+        let fn_path = paths.select_path_for(&x_type_path.path).to_token_stream();
+        // Self::resolve_field_rec(paths, ty, val, lhs, rhs)
+        parse_quote!({
+          let lhs_iter = #lhs.#val.into_iter();
+          let rhs_iter = #rhs.#val.into_iter();
+          let mut res_iter = lhs_iter.zip(rhs_iter)
+            .map(|(x, y)| x.#fn_path(y));
+          [(); #len].map(|()| res_iter.next().unwrap())
+        })
+      },
       syn::Type::Path(p) => {
         let fn_path = paths.select_path_for(&p.path).to_token_stream();
         // let r: TokenStream = parse_quote!(#val: #lhs.#val.#fn_path(#rhs.#val));
         // panic!("{r}");
-        (parse_quote!(#val), parse_quote!(#lhs.#val.#fn_path(#rhs.#val)))
+        parse_quote!(#lhs.#val.#fn_path(#rhs.#val))
       },
-      // syn::Type::Ptr(_) => todo!(),
-      // syn::Type::Reference(_) => todo!(),
-      // syn::Type::Slice(_) => todo!(),
-      // syn::Type::TraitObject(_) => todo!(),
       syn::Type::Tuple(t) => {
         let res = t.elems
           .iter()
@@ -77,15 +80,14 @@ impl DataQuote {
               &parse_quote!(#lhs.#val) as &TokenStream,
               &parse_quote!(#rhs.#val) as &TokenStream
             ).1
-          // ).collect::<Vec<_>>();
           ).collect::<Punctuated::<_, syn::Token![,]>>();
         // let res = Punctuated::<_, Token![,]>::from_iter(res);
         // panic!("{}", res.to_token_stream());
-        (parse_quote!(#val), parse_quote!((#res)))
+        parse_quote!((#res))
       },
-      // syn::Type::Verbatim(_) => todo!(),
       _ => panic!("Not implementation for case `{}`", ty.to_token_stream().to_string()),
-    }
+    };
+    (parse_quote!(#val), parsed_val)
   }
 }
 
