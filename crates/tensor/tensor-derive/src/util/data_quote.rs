@@ -1,10 +1,28 @@
 use quote::{quote, ToTokens};
 use syn::{Path, Data, Ident, DataStruct, parse_quote, Fields, FieldsNamed, punctuated::Punctuated, GenericParam, TypeParam, TraitBound, TypeParamBound, parse::Parse, FieldsUnnamed};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DataQuote {
+  Unit,
+
+  Own,
+  Ref,
+  Mut,
+
   OwnOwn,
   RefOwn,
   MutOwn,
+
+  OwnBor,
+  RefBor,
+  MutBor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum OpKind {
+  Unit,
+  Unary,
+  Binary,
 }
 
 pub struct DataQuotePaths {
@@ -18,6 +36,10 @@ type TokenStream = quote::__private::TokenStream;
 
 impl DataQuote {
   pub fn quote(&self, lhs_path: &Path, rhs_path: &Path, paths: &DataQuotePaths, ident: &Ident, data: &Data) -> TokenStream {
+    let rhs_path = match self {
+      Self::OwnBor | Self::RefBor | Self::MutBor => parse_quote!(&#rhs_path.borrow()),
+      Self::Unit | Self::Own | Self::Ref | Self::Mut | Self::OwnOwn | Self::RefOwn | Self::MutOwn => parse_quote!(#rhs_path),
+    };
     match data {
       Data::Struct(DataStruct {fields, ..}) => {
         match (fields, self.in_place()) {
@@ -25,7 +47,7 @@ impl DataQuote {
             let mut fields = Punctuated::<syn::FieldValue, syn::Token![,]>::new();
             for n in named {
               let val = n.ident.as_ref().unwrap();
-              let (a, b) = self.resolve_field_named(paths, &n.ty, val, lhs_path, rhs_path);
+              let (a, b) = self.resolve_field_named(paths, &n.ty, val, lhs_path, &rhs_path);
               fields.push(parse_quote!(#a: #b));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
@@ -35,7 +57,7 @@ impl DataQuote {
             let mut fields = Punctuated::<syn::Expr, syn::Token![,]>::new();
             for (i, n) in unnamed.iter().enumerate() {
               let idx = syn::Index::from(i);
-              fields.push(self.resolve_field_unnamed(paths, &n.ty, &idx, lhs_path, rhs_path));
+              fields.push(self.resolve_field_unnamed(paths, &n.ty, &idx, lhs_path, &rhs_path));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
             quote!(#ident ( #fields ))
@@ -44,7 +66,7 @@ impl DataQuote {
             let mut assignments = Punctuated::<syn::Expr, syn::Token![; ]>::new();
             for n in named {
               let val = n.ident.as_ref().unwrap();
-              let (_, b) = self.resolve_field_named(paths, &n.ty, val, lhs_path, rhs_path);
+              let (_, b) = self.resolve_field_named(paths, &n.ty, val, lhs_path, &rhs_path);
               assignments.push(b);
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
@@ -54,7 +76,7 @@ impl DataQuote {
             let mut assignments = Punctuated::<syn::Expr, syn::Token![; ]>::new();
             for (i, n) in unnamed.iter().enumerate() {
               let idx = syn::Index::from(i);
-              assignments.push(self.resolve_field_unnamed(paths, &n.ty, &idx, lhs_path, rhs_path));
+              assignments.push(self.resolve_field_unnamed(paths, &n.ty, &idx, lhs_path, &rhs_path));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
             assignments.to_token_stream()
@@ -67,20 +89,53 @@ impl DataQuote {
     }
   }
 
-  fn resolve_field_named<'a>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &Ident, lhs: &Path, rhs: &Path) -> (Path, syn::Expr) {
+  pub fn chain_bool(&self, lhs_path: &Path, rhs_path: &Path, paths: &DataQuotePaths, data: &Data) -> TokenStream {
+    let rhs_path: syn::Expr = match self {
+      Self::OwnBor | Self::RefBor | Self::MutBor => parse_quote!(&#rhs_path.borrow()),
+      Self::Unit | Self::Own | Self::Ref | Self::Mut | Self::OwnOwn | Self::RefOwn | Self::MutOwn => parse_quote!(#rhs_path),
+    };
+    match data {
+      Data::Struct(DataStruct {fields, ..}) => {
+        match fields {
+          Fields::Named(FieldsNamed {named, ..}) => {
+            let mut fields = Punctuated::<syn::Expr, syn::Token![ && ]>::new();
+            for n in named {
+              let val = n.ident.as_ref().unwrap();
+              fields.push(self.chain_bool_rec(paths, &n.ty, val, lhs_path, &rhs_path));
+            }
+            // println!("{:?}", fields.iter().collect::<Vec<_>>());
+            quote!(#fields)
+          },
+          Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => {
+            let mut fields = Punctuated::<syn::Expr, syn::Token![ && ]>::new();
+            for (i, n) in unnamed.iter().enumerate() {
+              let idx = syn::Index::from(i);
+              fields.push(self.chain_bool_rec(paths, &n.ty, &idx, lhs_path, &rhs_path));
+            }
+            // println!("{:?}", fields.iter().collect::<Vec<_>>());
+            quote!(#fields)
+          },
+          Fields::Unit => quote!(true),
+        }
+      },
+      _ => panic!("Use structs")
+    }
+  }
+
+  fn resolve_field_named<'a>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &Ident, lhs: &Path, rhs: &syn::Expr) -> (Path, syn::Expr) {
     self.resolve_field_rec(paths, ty, val, lhs, rhs)
   }
 
-  fn resolve_field_unnamed<'a>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &syn::Index, lhs: &Path, rhs: &Path) -> syn::Expr {
+  fn resolve_field_unnamed<'a>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &syn::Index, lhs: &Path, rhs: &syn::Expr) -> syn::Expr {
     self.resolve_field_rec::<syn::Index, _>(paths, ty, val, lhs, rhs).1
   }
 
-  fn resolve_field_rec<'a, P: Parse, Q: Parse>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> (P, Q)
-  {
+  fn resolve_field_rec<'a, P: Parse, Q: Parse>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> (P, Q) {
     let lhs_val = match self {
-      DataQuote::OwnOwn => quote!(#lhs.#val),
-      DataQuote::RefOwn => quote!((&#lhs.#val)),
-      DataQuote::MutOwn => quote!((&mut #lhs.#val)),
+      Self::Unit => ty.to_token_stream(),
+      Self::Own | Self::OwnOwn | Self::OwnBor => quote!(#lhs.#val),
+      Self::Ref | Self::RefOwn | Self::RefBor => quote!((&#lhs.#val)),
+      Self::Mut | Self::MutOwn | Self::MutBor => quote!((&mut #lhs.#val)),
     };
     
     let parsed_val = match ty {
@@ -91,31 +146,43 @@ impl DataQuote {
         let x_type: syn::TypePath = parse_quote!(#x_type);
         let fn_path = paths.select_path_for(&x_type.path).to_token_stream();
         // Self::resolve_field_rec(paths, ty, val, lhs, rhs)
+        let lhs_iter = quote!(#lhs_val.into_iter());
 
-        if self.in_place() {
-          parse_quote!({
-            let lhs_iter = #lhs_val.into_iter();
-            let rhs_iter = #rhs.#val.into_iter();
-            for (x, y) in lhs_iter.zip(rhs_iter) {
+        match self {
+          Self::Unit => parse_quote!(
+            [(); #len].map(|()| #x_type::#fn_path())
+          ),
+          Self::Own => parse_quote!(
+            #lhs.#val.map(|x| x.#fn_path())
+          ),
+          Self::Ref => parse_quote!({
+            let mut lhs_iter = #lhs_iter;
+            [(); #len].map(|()| lhs_iter.next().unwrap().#fn_path())
+          }),
+          Self::Mut => parse_quote!({
+            for x in #lhs_iter {
+              x.#fn_path()
+            }
+          }),
+          Self::OwnOwn | Self::RefOwn | Self::OwnBor | Self::RefBor => parse_quote!({
+            let mut res_iter = #lhs_iter.zip(#rhs.#val).map(|(x, y)| x.#fn_path(y));
+            [(); #len].map(|()| res_iter.next().unwrap())
+          }),
+          Self::MutOwn | Self::MutBor => parse_quote!({
+            for (x, y) in #lhs_iter.zip(#rhs.#val) {
               x.#fn_path(y)
             }
-          })
-        } else {
-          parse_quote!({
-            let lhs_iter = #lhs_val.into_iter();
-            let rhs_iter = #rhs.#val.into_iter();
-            let mut res_iter = lhs_iter.zip(rhs_iter)
-            // .map(|(x, y)| #x_fn_y);
-              .map(|(x, y)| x.#fn_path(y));
-            [(); #len].map(|()| res_iter.next().unwrap())
-          })
+          }),
         }
       },
       syn::Type::Path(p) => {
-        let fn_path = paths.select_path_for(&p.path).to_token_stream();
-        // let r: TokenStream = parse_quote!(#val: #lhs.#val.#fn_path(#rhs.#val));
-        // panic!("{r}");
-        parse_quote!(#lhs_val.#fn_path(#rhs.#val))
+        let p_path = &p.path;
+        let fn_path = paths.select_path_for(p_path).to_token_stream();
+        match self.kind() {
+          OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
+          OpKind::Unary => parse_quote!(#lhs_val.#fn_path()),
+          OpKind::Binary => parse_quote!(#lhs_val.#fn_path(#rhs.#val)),
+        }
       },
       syn::Type::Tuple(t) => {
         let res = t.elems
@@ -133,15 +200,90 @@ impl DataQuote {
         // panic!("{}", res.to_token_stream());
         parse_quote!((#res))
       },
-      _ => panic!("Not implementation for case `{}`", ty.to_token_stream().to_string()),
+      _ => panic!("No implementation for case `{}`", ty.to_token_stream().to_string()),
     };
     (parse_quote!(#val), parsed_val)
   }
 
+  fn chain_bool_rec<'a, P: Parse>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> P {
+    let lhs_val = match self {
+      Self::Unit => ty.to_token_stream(),
+      Self::Own | Self::OwnOwn | Self::OwnBor => quote!(#lhs.#val),
+      Self::Ref | Self::RefOwn | Self::RefBor => quote!((&#lhs.#val)),
+      Self::Mut | Self::MutOwn | Self::MutBor => quote!((&mut #lhs.#val)),
+    };
+    
+    match ty {
+      syn::Type::Array(xs) => {
+        let x_type = xs.elem.to_token_stream();
+        let x_type: syn::TypePath = parse_quote!(#x_type);
+        let fn_path = paths.select_path_for(&x_type.path).to_token_stream();
+        let lhs_iter = quote!(#lhs_val.into_iter());
+
+        match self {
+          Self::Unit => parse_quote!(#x_type::#fn_path()),
+          Self::Own | Self::Ref | Self::Mut => parse_quote!({
+            let mut res = true;
+            for x in #lhs_iter {
+              if(!x.#fn_path()) {
+                res = false;
+                break;
+              }
+            }
+            res
+          }),
+          Self::OwnOwn | Self::RefOwn | Self::MutOwn | Self::OwnBor | Self::RefBor | Self::MutBor => parse_quote!({
+            let mut res = true;
+            let res_iter = #lhs_iter.zip(#rhs.#val);
+            for (x, y) in res_iter {
+              if(!x.#fn_path(y)) {
+                res = false;
+                break;
+              }
+            }
+            res
+          }),
+        }
+      },
+      syn::Type::Path(p) => {
+        let p_path = &p.path;
+        let fn_path = paths.select_path_for(p_path).to_token_stream();
+        match self.kind() {
+          OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
+          OpKind::Unary => parse_quote!(#lhs_val.#fn_path()),
+          OpKind::Binary => parse_quote!(#lhs_val.#fn_path(#rhs.#val)),
+        }
+      },
+      syn::Type::Tuple(t) => {
+        let res = t.elems
+          .iter()
+          .enumerate()
+          .map(|(i, t)| self.chain_bool_rec::<syn::Expr>(
+              paths,
+              t,
+              &syn::Index::from(i),
+              &quote!(#lhs.#val),
+              &quote!(#rhs.#val)
+            )
+          ).collect::<Punctuated::<_, syn::Token![ && ]>>();
+        parse_quote!(#res)
+      },
+      _ => panic!("No implementation for case `{}`", ty.to_token_stream().to_string()),
+    }
+  }
+
   pub fn in_place(&self) -> bool {
     match self {
-      Self::OwnOwn | Self::RefOwn => false,
-      Self::MutOwn => true,
+      Self::Mut | Self::MutOwn | Self::MutBor => true,
+      Self::Unit | Self::Own | Self::Ref | Self::OwnOwn | Self::RefOwn | Self::OwnBor | Self::RefBor => false,
+    }
+  }
+
+  pub fn kind(&self) -> OpKind {
+    match self {
+      Self::Unit => OpKind::Unit,
+      Self::Own | Self::Ref | Self::Mut => OpKind::Unary,
+      Self::OwnOwn | Self::RefOwn | Self::MutOwn | Self::OwnBor | Self::RefBor | Self::MutBor => OpKind::Binary,
     }
   }
 }

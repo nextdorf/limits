@@ -9,7 +9,7 @@ pub use num_traits::Zero;
 pub struct Group<T: GenGroup>(pub T);
 
 #[derive(GroupWrapper)]
-// #[num_traits_zero_path(Zero)]
+#[num_traits_zero_path(Zero)]
 #[gen_group_path(GenGroup)]
 struct MultiGroup<T: GenGroup> {
   a: (T, T),
@@ -24,7 +24,6 @@ const fn qq() -> usize {
 struct NType(pub i32);
 fn qqq() -> [NType; 4] {
   // let a = (5,).0;
-
   let a = [1,2,3].map(NType);
   let b = [4,5,6].map(NType);
   let b = &b;
@@ -34,4 +33,9 @@ fn qqq() -> [NType; 4] {
   [(); 4].map(|()| ab_it.next().unwrap())
 }
 
+fn ppp() {
+  let w = [true, true ,false];
+  // w.contains(x)
+  // w.con
+}
 
