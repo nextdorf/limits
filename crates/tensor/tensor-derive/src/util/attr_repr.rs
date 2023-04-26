@@ -9,7 +9,10 @@ pub struct OptField<T> {
 
 pub struct AttrRepr {
   pub zero_path: OptField<syn::Path>,
+  pub one_path: OptField<syn::Path>,
+  pub inv_path: OptField<syn::Path>,
   pub gen_group_path: OptField<syn::Path>,
+  pub gen_abel_group_path: OptField<syn::Path>,
 }
 
 
@@ -37,7 +40,10 @@ impl AttrRepr {
           // println!("1: {}", xs.to_token_stream());
           match ident.to_string().as_str() {
             "num_traits_zero_path" => res.zero_path.set(xs.parse_args().unwrap()),
+            "num_traits_one_path" => res.one_path.set(xs.parse_args().unwrap()),
+            "num_traits_inv_path" => res.inv_path.set(xs.parse_args().unwrap()),
             "gen_group_path" => res.gen_group_path.set(xs.parse_args().unwrap()),
+            "gen_abel_group_path" => res.gen_abel_group_path.set(xs.parse_args().unwrap()),
             s => eprintln!("Unknown: {}", s)
           }
         }
@@ -51,7 +57,10 @@ impl Default for AttrRepr {
   fn default() -> Self {
     Self {
       zero_path: OptField::new(parse_quote!(::tensor::group::Zero)),
+      one_path: OptField::new(parse_quote!(::tensor::group::One)),
+      inv_path: OptField::new(parse_quote!(::tensor::group::Inv)),
       gen_group_path: OptField::new(parse_quote!(::tensor::GenGroup)),
+      gen_abel_group_path: OptField::new(parse_quote!(::tensor::GenAbelGroup)),
     }
   }
 }

@@ -1,12 +1,12 @@
 mod trait_impl;
 
-pub mod num_field;
-pub mod vector_space;
+// pub mod num_field;
+// pub mod vector_space;
 pub mod group;
 
-pub use group::GenGroup;
-pub use num_field::NumField;
-pub use vector_space::GenVectorSpace;
+pub use group::{GenAbelGroup, GenGroup};
+// pub use num_field::NumField;
+// pub use vector_space::GenVectorSpace;
 
 
 

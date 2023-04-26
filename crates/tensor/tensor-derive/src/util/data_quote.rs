@@ -222,27 +222,16 @@ impl DataQuote {
 
         match self {
           Self::Unit => parse_quote!(#x_type::#fn_path()),
-          Self::Own | Self::Ref | Self::Mut => parse_quote!({
-            let mut res = true;
-            for x in #lhs_iter {
-              if(!x.#fn_path()) {
-                res = false;
-                break;
-              }
-            }
-            res
-          }),
-          Self::OwnOwn | Self::RefOwn | Self::MutOwn | Self::OwnBor | Self::RefBor | Self::MutBor => parse_quote!({
-            let mut res = true;
-            let res_iter = #lhs_iter.zip(#rhs.#val);
-            for (x, y) in res_iter {
-              if(!x.#fn_path(y)) {
-                res = false;
-                break;
-              }
-            }
-            res
-          }),
+          Self::Own | Self::Ref | Self::Mut => parse_quote!(
+            #lhs_iter.find_map(|x|
+              if x.#fn_path() { None } else { Some(false) }
+            ).unwrap_or(true)
+          ),
+          Self::OwnOwn | Self::RefOwn | Self::MutOwn | Self::OwnBor | Self::RefBor | Self::MutBor => parse_quote!(
+            #lhs_iter.zip(#rhs.#val).find_map(|(x, y)|
+              if x.#fn_path(y) { None } else { Some(false) }
+            ).unwrap_or(true)
+          ),
         }
       },
       syn::Type::Path(p) => {

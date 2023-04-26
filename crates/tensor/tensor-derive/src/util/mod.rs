@@ -1,5 +1,6 @@
 pub mod attr_repr;
 pub mod data_quote;
+pub(crate) mod group;
 
 pub fn eq_iter<T: Eq>(mut a: impl Iterator<Item = T>, mut b: impl Iterator<Item = T>) -> bool {
   loop {
