@@ -31,6 +31,9 @@ pub fn plain_mult_group_wrapper(input: TokenStream) -> TokenStream {
 pub fn plain_abel_group_wrapper(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as syn::DeriveInput);
   group::group_wrapper_impl(&input, GenGroupKind::Abel)
+  // let res = group::group_wrapper_impl(&input, GenGroupKind::Abel);
+  // panic!("{res}");
+  // res
 }
 
 /// Derives `Group` functionalities without assumed commutativity

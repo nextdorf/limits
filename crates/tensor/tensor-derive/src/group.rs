@@ -16,14 +16,15 @@ use crate::util::{
 };
 
 
-
-
 #[inline]
 pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> TokenStream {
   let attrs = AttrRepr::new_with(input.attrs.iter());
   // let attrs = AttrRepr::default();
   // let zero_trait = attrs.zero_path.get();
-  let gen_group = attrs.gen_abel_group_path.get();
+  let gen_group = match kind {
+    GenGroupKind::Abel => attrs.gen_abel_group_path.get(),
+    GenGroupKind::Mult => attrs.gen_group_path.get(),
+  };
 
   // Group
   let ident = &input.ident;
@@ -57,6 +58,7 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> Tok
       DataQuote::OwnOwn,
       path_choice.mult_expr()
     ).unpack();
+    // panic!("{}, {}, {}", mult_expr, mult_fn_path, mult_trait_path.to_token_stream());
     let (ref_mult_expr, ref_mult_fn_path, ref_mult_trait_path) = quote_params.quote(
       DataQuote::RefOwn,
       path_choice.ref_mult_expr()
@@ -78,7 +80,7 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> Tok
       path_choice.mult_assign_inv_expr()
     ).unpack();
 
-    quote!({
+    quote!{
       // Addition +++++++++++++++++++++++++++++++++++++++++++
       impl #impl_gen #mult_trait_path<#ident #type_gen> for #ident #type_gen #where_clause {
         type Output = #ident #type_gen;
@@ -124,7 +126,7 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> Tok
           #mult_assign_inv_expr
         }
       }
-    })
+    }
   }.into();
 
 
@@ -137,7 +139,7 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> Tok
       DataQuote::Mut,
       path_choice.set_unit_expr()
     ).unpack();
-    let (is_unit_expr, is_unit_fn_path, _) = quote_params.quote(
+    let (is_unit_expr, is_unit_fn_path, _) = quote_params.chain_bool(
       DataQuote::Ref,
       path_choice.is_unit_expr()
     ).unpack();
@@ -151,7 +153,7 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> Tok
     ).unpack();
 
     quote! {
-      // Inverte / Negate +++++++++++++++++++++++++++++++++++
+      // Invert / Negate +++++++++++++++++++++++++++++++++++
       impl #impl_gen #inv_trait_path for #ident #type_gen #where_clause {
         type Output = #ident #type_gen;
 
@@ -265,6 +267,8 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> Tok
       }
     }
   }.into();
+
+  // panic!("{}", own_rhs_quote);
 
   // let path_choice = DataQuotePaths {
   //   t_idents,
@@ -521,8 +525,8 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> Tok
 
   <_ as std::iter::FromIterator<TokenStream>>::from_iter([
     own_rhs_quote,
-    bor_rhs_quote,
     unary_quote,
+    bor_rhs_quote,
   ])
 }
 

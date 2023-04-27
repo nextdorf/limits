@@ -80,13 +80,13 @@ impl TraitImplPaths {
 }
 
 
-impl TraitImplExtPaths {
-  pub fn unpack(self) -> (syn::Path, syn::Ident, syn::Path) {
-    let Self { t_impl_path, trait_impl_paths } = self;
-    let (fn_path, trait_path) = trait_impl_paths.unpack();
-    (t_impl_path, fn_path, trait_path)
-  }
-}
+// impl TraitImplExtPaths {
+//   pub fn unpack(self) -> (syn::Path, syn::Ident, syn::Path) {
+//     let Self { t_impl_path, trait_impl_paths } = self;
+//     let (fn_path, trait_path) = trait_impl_paths.unpack();
+//     (t_impl_path, fn_path, trait_path)
+//   }
+// }
 
 
 impl GroupDataQuotePaths {
@@ -228,6 +228,15 @@ impl<'a> QuoteParams<'a> {
   pub fn quote(&self, data_quote: DataQuote, args: (&DataQuotePaths, TraitImplPaths)) -> QuoteRes {
     let (paths, trait_impl_paths) = args;
     let expr = data_quote.quote(self.lhs_path, self.rhs_path, paths, self.ident, self.data);
+    QuoteRes {
+      expr,
+      trait_impl_paths,
+    }
+  }
+
+  pub fn chain_bool(&self, data_quote: DataQuote, args: (&DataQuotePaths, TraitImplPaths)) -> QuoteRes {
+    let (paths, trait_impl_paths) = args;
+    let expr = data_quote.chain_bool(self.lhs_path, self.rhs_path, paths, self.data);
     QuoteRes {
       expr,
       trait_impl_paths,
