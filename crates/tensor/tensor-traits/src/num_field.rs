@@ -1,8 +1,7 @@
-use num_traits::{One, NumOps, real::Real};
-use crate::GenGroup;
+use num_traits::real::Real;
 
 
-pub trait NumField: Copy + One + NumOps + GenGroup + From<Self::Real> {
+pub trait NumFieldOp: From<Self::Real> {
   type Real: Real;
 
   /// Returns the smallest positive, normalized value that this type can represent.
@@ -42,9 +41,8 @@ pub trait NumField: Copy + One + NumOps + GenGroup + From<Self::Real> {
   fn ln(self) -> Self;
 
   /// Returns the logarithm of the number with respect to an arbitrary base.
-  fn log(self, base: Self::Real) -> Self {
-    self.ln() / Self::from(base).ln()
-  }
+  fn log(self, base: Self::Real) -> Self;
+    // self.ln() / Self::from(base).ln()
 
   /// Returns the base 2 logarithm of the number.
   fn log2(self) -> Self;
@@ -111,4 +109,9 @@ pub trait NumField: Copy + One + NumOps + GenGroup + From<Self::Real> {
   fn conj(self) -> Self;
 }
 
+
+// pub struct UnitGroup
+
+pub struct NumAdd;
+pub struct NumMul;
 

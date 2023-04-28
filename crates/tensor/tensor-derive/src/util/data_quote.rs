@@ -1,5 +1,5 @@
 use quote::{quote, ToTokens};
-use syn::{Path, Data, Ident, DataStruct, parse_quote, Fields, FieldsNamed, punctuated::Punctuated, GenericParam, TypeParam, TraitBound, TypeParamBound, parse::Parse, FieldsUnnamed};
+use syn::{Path, Data, Ident, DataStruct, parse_quote, Fields, FieldsNamed, punctuated::Punctuated, GenericParam, TypeParam, TraitBound, TypeParamBound, parse::Parse, FieldsUnnamed, Token};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DataQuote {
@@ -27,6 +27,7 @@ pub enum OpKind {
 
 pub struct DataQuotePaths {
   pub t_idents: Vec<Ident>,
+  pub unit_idents: Vec<Ident>,
   pub t_fn_path: Path,
   pub default_fn_path: Path,
 }
@@ -177,11 +178,39 @@ impl DataQuote {
       },
       syn::Type::Path(p) => {
         let p_path = &p.path;
-        let fn_path = paths.select_path_for(p_path).to_token_stream();
-        match self.kind() {
-          OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
-          OpKind::Unary => parse_quote!(#lhs_val.#fn_path()),
-          OpKind::Binary => parse_quote!(#lhs_val.#fn_path(#rhs.#val)),
+        // let p_ident_path_store: syn::Path;
+        // let p_ident = match p_path.get_ident() {
+        //   Some(ident) => Some(ident),
+        //   None => {
+        //     let mut out_path = p_path.segments.clone();
+        //     if let Some(x) = out_path.last_mut() {
+        //       x.arguments = syn::PathArguments::None;
+        //     }
+        //     p_ident_path_store = parse_quote!(#out_path);
+        //     p_ident_path_store.get_ident()
+        //   }
+        // };
+        // let is_unit_type = p_ident
+        //   .and_then(|ident| {
+        //     Some(paths.unit_idents.contains(ident))
+        // }).unwrap_or(false);
+        let (p_ident_path, is_unit_type) = Self::p_ident_path_helper(paths, p_path);
+        let p_ident = p_ident_path.as_ref().and_then(syn::Path::get_ident).or(p_path.get_ident());
+
+        if !is_unit_type {
+          let fn_path = paths.select_path_for(p_path).to_token_stream();
+          match self.kind() {
+            OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
+            OpKind::Unary => parse_quote!(#lhs_val.#fn_path()),
+            OpKind::Binary => parse_quote!(#lhs_val.#fn_path(#rhs.#val)),
+          }
+        } else {
+          if self.in_place() {
+            // panic!("{:?}", p_ident);
+            parse_quote!(())
+          } else {
+            parse_quote!(#p_ident)
+          }
         }
       },
       syn::Type::Tuple(t) => {
@@ -236,11 +265,19 @@ impl DataQuote {
       },
       syn::Type::Path(p) => {
         let p_path = &p.path;
-        let fn_path = paths.select_path_for(p_path).to_token_stream();
-        match self.kind() {
-          OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
-          OpKind::Unary => parse_quote!(#lhs_val.#fn_path()),
-          OpKind::Binary => parse_quote!(#lhs_val.#fn_path(#rhs.#val)),
+        let is_unit_type = Self::p_ident_path_helper(paths, p_path).1;
+        // let (p_ident_path, is_unit_type) = Self::p_ident_path_helper(paths, p_path);
+        // let p_ident = p_ident_path.as_ref().and_then(syn::Path::get_ident).or(p_path.get_ident());
+
+        if !is_unit_type {
+          let fn_path = paths.select_path_for(p_path).to_token_stream();
+          match self.kind() {
+            OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
+            OpKind::Unary => parse_quote!(#lhs_val.#fn_path()),
+            OpKind::Binary => parse_quote!(#lhs_val.#fn_path(#rhs.#val)),
+          }
+        } else {
+          parse_quote!(true)
         }
       },
       syn::Type::Tuple(t) => {
@@ -258,6 +295,27 @@ impl DataQuote {
         parse_quote!(#res)
       },
       _ => panic!("No implementation for case `{}`", ty.to_token_stream().to_string()),
+    }
+  }
+
+  fn p_ident_path_helper(paths: &DataQuotePaths, p_path: &syn::Path) -> (Option<syn::Path>, bool) {
+    fn is_unit_type(paths: &DataQuotePaths, p_ident: Option<&syn::Ident>) -> bool {
+      p_ident.and_then(|ident| {
+        Some(paths.unit_idents.contains(ident))
+      }).unwrap_or(false)
+    }
+
+    match p_path.get_ident() {
+      Some(ident) => (None, is_unit_type(paths, Some(ident))),
+      None => {
+        let mut out_path = p_path.segments.clone();
+        if let Some(x) = out_path.last_mut() {
+          x.arguments = syn::PathArguments::None;
+        }
+        let p_ident_path: syn::Path = parse_quote!(#out_path);
+        let is_unit_type_res = is_unit_type(paths, p_ident_path.get_ident());
+        (Some(p_ident_path), is_unit_type_res)
+      }
     }
   }
 
@@ -279,15 +337,16 @@ impl DataQuote {
 
 
 impl DataQuotePaths {
-  pub fn select_path_for(&self, p: &Path) -> &Path {
+  pub fn select_path_for(&self, p: &Path) -> Option<&Path> {
     if let Some(p) = p.get_ident() {
-      for q in &self.t_idents {
-        if q == p {
-          return &self.t_fn_path;
-        }
+      if self.t_idents.iter().find(|q| q == &p).is_some() {
+        return Some(&self.t_fn_path);
+      }
+      if self.unit_idents.iter().find(|q| q == &p).is_some() {
+        return None;
       }
     }
-    &self.default_fn_path
+    Some(&self.default_fn_path)
   }
 
   pub fn t_idents_from<'a>(path: &Path, params: impl Iterator<Item = &'a GenericParam>) -> Vec<Ident> {

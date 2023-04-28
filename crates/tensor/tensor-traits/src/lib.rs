@@ -1,6 +1,6 @@
 mod trait_impl;
 
-// pub mod num_field;
+pub mod num_field;
 // pub mod vector_space;
 pub mod group;
 

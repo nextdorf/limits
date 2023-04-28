@@ -90,19 +90,20 @@ impl TraitImplPaths {
 
 
 impl GroupDataQuotePaths {
-  pub fn new(t_idents: Vec<syn::Ident>, kind: GenGroupKind, attrs: &AttrRepr) -> Self {
+  pub fn new(t_idents: Vec<syn::Ident>, unit_idents: Vec<syn::Ident>, kind: GenGroupKind, attrs: &AttrRepr) -> Self {
     let new_fn = match kind {
       GenGroupKind::Abel => Self::new_abel,
       GenGroupKind::Mult => Self::new_mult,
     };
-    new_fn(t_idents, attrs)
+    new_fn(t_idents, unit_idents, attrs)
   }
 
-  pub fn new_abel(t_idents: Vec<syn::Ident>, attrs: &AttrRepr) -> Self {
-    let zero_path = attrs.zero_path.get();
+  pub fn new_abel(t_idents: Vec<syn::Ident>, unit_idents: Vec<syn::Ident>, attrs: &AttrRepr) -> Self {
+    let zero_path = &*attrs.zero_path;
 
     Self::new_base(
       t_idents,
+      unit_idents,
       TraitImplPaths::new(parse_quote!(add), parse_quote!(std::ops::Add)),
       TraitImplPaths::new(parse_quote!(add), parse_quote!(std::ops::Add)),
       TraitImplPaths::new(parse_quote!(add), parse_quote!(std::ops::Add)),
@@ -126,12 +127,13 @@ impl GroupDataQuotePaths {
     )
   }
 
-  pub fn new_mult(t_idents: Vec<syn::Ident>, attrs: &AttrRepr) -> Self {
-    let one_path = attrs.one_path.get();
-    let inv_path = attrs.inv_path.get();
+  pub fn new_mult(t_idents: Vec<syn::Ident>, unit_idents: Vec<syn::Ident>, attrs: &AttrRepr) -> Self {
+    let one_path = &*attrs.one_path;
+    let inv_path = &*attrs.inv_path;
 
     Self::new_base(
       t_idents,
+      unit_idents,
       TraitImplPaths::new(parse_quote!(mul), parse_quote!(std::ops::Mul)),
       TraitImplPaths::new(parse_quote!(mul), parse_quote!(std::ops::Mul)),
       TraitImplPaths::new(parse_quote!(mul), parse_quote!(std::ops::Mul)),
@@ -158,6 +160,7 @@ impl GroupDataQuotePaths {
 
   pub fn new_base(
     t_idents: Vec<syn::Ident>,
+    unit_idents: Vec<syn::Ident>,
 
     mult: TraitImplPaths,
     ref_mult: TraitImplPaths,
@@ -178,7 +181,7 @@ impl GroupDataQuotePaths {
     ref_inv: TraitImplPaths,
   ) -> Self {
     Self {
-      inner: Self::new_data_quote_paths(t_idents),
+      inner: Self::new_data_quote_paths(t_idents, unit_idents),
 
       mult_expr: mult.ext(parse_quote!(mult)),
       ref_mult_expr: ref_mult.ext(parse_quote!(ref_mult)),
@@ -203,9 +206,10 @@ impl GroupDataQuotePaths {
     }
   }
 
-  fn new_data_quote_paths(t_idents: Vec<syn::Ident>) -> DataQuotePaths {
+  fn new_data_quote_paths(t_idents: Vec<syn::Ident>, unit_idents: Vec<syn::Ident>) -> DataQuotePaths {
     DataQuotePaths {
       t_idents,
+      unit_idents,
       t_fn_path: parse_quote!(uninitialized),
       default_fn_path: parse_quote!(uninitialized),
     }

@@ -1,12 +1,12 @@
 use crate::{
   GenAbelGroup,
-  GenGroup
+  GenGroup, num_field::{NumAdd, NumMul}
 };
 
 #[macro_export]
 macro_rules! gen_abelian_group_impl {
-  ($($t:ty)*) => ($(
-    impl GenGroup for $t {
+  ($u:ty: $($t:ty)*) => ($(
+    impl GenGroup<$u> for $t {
       fn mult(self, rhs: Self) -> Self { self + rhs }
       fn mult_ref(self, rhs: &Self) -> Self { self + rhs }
       fn ref_mult(&self, rhs: Self) -> Self { self + rhs }
@@ -29,14 +29,14 @@ macro_rules! gen_abelian_group_impl {
       fn set_unit(&mut self) { num_traits::Zero::set_zero(self) }
     }
 
-    impl GenAbelGroup for $t {}
+    impl GenAbelGroup<$u> for $t {}
   )*)
 }
 
 #[macro_export]
 macro_rules! gen_mul_group_impl {
-  ($($t:ty)*) => ($(
-    impl GenGroup for $t {
+  ($u:ty: $($t:ty)*) => ($(
+    impl GenGroup<$u> for $t {
       fn mult(self, rhs: Self) -> Self { self * rhs }
       fn mult_ref(self, rhs: &Self) -> Self { self * rhs }
       fn ref_mult(&self, rhs: Self) -> Self { self * rhs }
@@ -62,9 +62,13 @@ macro_rules! gen_mul_group_impl {
 }
 
 
-gen_abelian_group_impl! { i8 i16 i32 i64 i128 f32 f64 }
+gen_abelian_group_impl! { NumAdd: i8 i16 i32 i64 i128 f32 f64 }
+gen_mul_group_impl! { NumMul: f32 f64 }
+
 
 #[cfg(feature = "complex")]
-gen_abelian_group_impl! { num_complex::Complex32 num_complex::Complex64 }
+gen_abelian_group_impl! { NumAdd: num_complex::Complex32 num_complex::Complex64 }
+#[cfg(feature = "complex")]
+gen_mul_group_impl! { NumMul: num_complex::Complex32 num_complex::Complex64 }
 
 

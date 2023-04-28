@@ -76,6 +76,12 @@ pub fn gen_group_path(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 
+#[proc_macro_attribute]
+pub fn wrap_deref(_attr: TokenStream, item: TokenStream) -> TokenStream {
+  item
+}
+
+
 macro_rules! macro_err {
   ($input:ident, $msg:expr) => {
     syn::Error::new($input.span(), $msg).to_compile_error().into()

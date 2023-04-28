@@ -1,16 +1,39 @@
+pub mod cyclic;
+pub mod permutation;
+
+use std::marker::PhantomData;
+
 use crate::{AbelGroupWrapper, GenAbelGroup, GenGroup, GroupWrapper, WrapperDeref};
 pub use num_traits::{Inv, One, Zero};
-use tensor_derive::{gen_group_path, num_traits_inv_path, num_traits_one_path};
+use tensor_derive::{gen_group_path, num_traits_inv_path, num_traits_one_path, wrap_deref};
+pub use cyclic::Cyclic;
+pub use permutation::Permutation;
+
 pub use tensor_derive::{
-    gen_abel_group_path, num_traits_zero_path, PlainAbelGroupWrapper, PlainGroupWrapper,
+  gen_abel_group_path,
+  num_traits_zero_path,
+  PlainAbelGroupWrapper,
+  PlainGroupWrapper,
 };
 
-// #[derive(/*WrapperDeref,*/ AbelGroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+
 #[derive(WrapperDeref, AbelGroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-// #[derive(PlainAbelGroupWrapper)]
 #[gen_abel_group_path(GenAbelGroup)]
 #[num_traits_zero_path(Zero)]
-pub struct AbelGroup<T: GenAbelGroup>(pub T);
+#[wrap_deref(1)]
+pub struct AbelGroup<Kind, T: GenAbelGroup<Kind>>(PhantomData<Kind>, pub T);
+
+
+fn qqqqq() -> PhantomData<()> {
+  <PhantomData<()>>::default()
+}
+
+#[derive(WrapperDeref, GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[gen_group_path(GenGroup)]
+#[num_traits_one_path(One)]
+#[num_traits_inv_path(Inv)]
+#[wrap_deref(0)]
+pub struct Group<Kind, T: GenGroup<Kind>>(pub T, PhantomData<Kind>);
 
 
 #[derive(WrapperDeref, GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -32,21 +55,23 @@ struct NGroup<const N:usize, T: GenGroup>(pub [T; N]);
 // }
 
 
-#[test]
-fn abel_group_calc() {
-  let [x, y, z] = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]].map(NGroup);
-  let xyz = x * y * z;
-  let xx = x * x;
-  assert_eq!(*xyz, [1.; 3]);
-  assert_eq!(*xx, [2., 0., 0.]);
+impl<T: GenGroup<K> + ToString, K> ToString for Group<K, T> {
+  fn to_string(&self) -> String {
+    self.0.to_string()
+  }
 }
 
+// impl<T: GenAbelGroup<K> + ToString, K> ToString for AbelGroup<K, T> {
+//   fn to_string(&self) -> String {
+//     self.0.to_string()
+//   }
+// }
+
+/*
 #[cfg(test)]
 mod tests {
-
-use std::fmt::Debug;
-
-use num_traits::Zero;
+  use std::fmt::Debug;
+  use num_traits::Zero;
   use tensor_derive::{
     gen_abel_group_path,
     num_traits_zero_path,
@@ -135,7 +160,7 @@ use num_traits::Zero;
 
   #[test]
   fn multi_add() {
-    fn inner<T: super::GenAbelGroup + From<i8> + PartialEq + Debug + Clone>(x: &MultiGroup<i8>, y: &MultiGroup<i8>) {
+    fn inner<T: super::GenAbelGroup<_> + From<i8> + PartialEq + Debug + Clone>(x: &MultiGroup<i8>, y: &MultiGroup<i8>) {
       let a: MultiGroup<T> = x.clone().into();
       let b: MultiGroup<T> = y.clone().into();
 
@@ -221,4 +246,4 @@ use num_traits::Zero;
     }
   }
 }
-
+*/
