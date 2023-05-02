@@ -1,13 +1,13 @@
-pub mod cyclic;
-pub mod permutation;
+// pub mod cyclic;
+// pub mod permutation;
 
 use std::marker::PhantomData;
 
 use crate::{AbelGroupWrapper, GenAbelGroup, GenGroup, GroupWrapper, WrapperDeref};
 pub use num_traits::{Inv, One, Zero};
 use tensor_derive::{gen_group_path, num_traits_inv_path, num_traits_one_path, wrap_deref};
-pub use cyclic::Cyclic;
-pub use permutation::Permutation;
+// pub use cyclic::Cyclic;
+// pub use permutation::Permutation;
 
 pub use tensor_derive::{
   gen_abel_group_path,
@@ -17,26 +17,25 @@ pub use tensor_derive::{
 };
 
 
-#[derive(WrapperDeref, AbelGroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[gen_abel_group_path(GenAbelGroup)]
+// #[derive(WrapperDeref, AbelGroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(AbelGroupWrapper)]
+#[gen_abel_group_path(GenAbelGroup: GenGroup<NumAdd>)]
 #[num_traits_zero_path(Zero)]
-#[wrap_deref(1)]
-pub struct AbelGroup<Kind, T: GenAbelGroup<Kind>>(PhantomData<Kind>, pub T);
+#[wrap_deref]
+pub struct AbelGroup<Kind, T: GenAbelGroup<Kind>>(pub T, PhantomData<Kind>);
 
 
-fn qqqqq() -> PhantomData<()> {
-  <PhantomData<()>>::default()
-}
-
-#[derive(WrapperDeref, GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[gen_group_path(GenGroup)]
-#[num_traits_one_path(One)]
-#[num_traits_inv_path(Inv)]
-#[wrap_deref(0)]
-pub struct Group<Kind, T: GenGroup<Kind>>(pub T, PhantomData<Kind>);
+// #[derive(WrapperDeref, GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// // #[derive(WrapperDeref)]
+// #[gen_group_path(GenGroup)]
+// #[num_traits_one_path(One)]
+// #[num_traits_inv_path(Inv)]
+// #[wrap_deref]
+// pub struct Group<Kind, T: GenGroup<Kind>>(pub T, PhantomData<Kind>);
 
 
-#[derive(WrapperDeref, GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// #[derive(WrapperDeref, GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// #[derive(WrapperDeref)]
 #[gen_group_path(GenGroup)]
 #[num_traits_one_path(One)]
 #[num_traits_inv_path(Inv)]
@@ -55,11 +54,11 @@ struct NGroup<const N:usize, T: GenGroup>(pub [T; N]);
 // }
 
 
-impl<T: GenGroup<K> + ToString, K> ToString for Group<K, T> {
-  fn to_string(&self) -> String {
-    self.0.to_string()
-  }
-}
+// impl<T: GenGroup<K> + ToString, K> ToString for Group<K, T> {
+//   fn to_string(&self) -> String {
+//     self.deref().to_string()
+//   }
+// }
 
 // impl<T: GenAbelGroup<K> + ToString, K> ToString for AbelGroup<K, T> {
 //   fn to_string(&self) -> String {
@@ -72,6 +71,8 @@ impl<T: GenGroup<K> + ToString, K> ToString for Group<K, T> {
 mod tests {
   use std::fmt::Debug;
   use num_traits::Zero;
+  use tensor_traits::num_field::NumAdd;
+
   use tensor_derive::{
     gen_abel_group_path,
     num_traits_zero_path,
@@ -81,14 +82,15 @@ mod tests {
     AbelGroupWrapper,
   };
 
+
   #[derive(AbelGroupWrapper, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
   #[num_traits_zero_path(Zero)]
   #[gen_abel_group_path(super::GenAbelGroup)]
-  struct MultiGroup<T: super::GenAbelGroup> {
+  struct MultiGroup<T: super::GenAbelGroup<NumAdd>> {
     a: (T, T),
     b: T,
     c: T,
-    d: super::AbelGroup<T>,
+    d: super::AbelGroup<NumAdd, T>,
     e: [T; qq()],
   }
 
@@ -116,13 +118,13 @@ mod tests {
 
   #[test]
   fn multi_0() {
-    assert_eq!(MultiGroup::<i8>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup(0), e: [0; qq()] });
-    assert_eq!(MultiGroup::<i16>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup(0), e: [0; qq()] });
-    assert_eq!(MultiGroup::<i32>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup(0), e: [0; qq()] });
-    assert_eq!(MultiGroup::<i64>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup(0), e: [0; qq()] });
-    assert_eq!(MultiGroup::<i128>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup(0), e: [0; qq()] });
-    assert_eq!(MultiGroup::<f32>::zero(), MultiGroup { a: (0., 0.), b: 0., c: 0., d: super::AbelGroup(0.), e: [0.; qq()] });
-    assert_eq!(MultiGroup::<f64>::zero(), MultiGroup { a: (0., 0.), b: 0., c: 0., d: super::AbelGroup(0.), e: [0.; qq()] });
+    assert_eq!(MultiGroup::<i8>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup::new(0), e: [0; qq()] });
+    assert_eq!(MultiGroup::<i16>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup::new(0), e: [0; qq()] });
+    assert_eq!(MultiGroup::<i32>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup::new(0), e: [0; qq()] });
+    assert_eq!(MultiGroup::<i64>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup::new(0), e: [0; qq()] });
+    assert_eq!(MultiGroup::<i128>::zero(), MultiGroup { a: (0, 0), b: 0, c: 0, d: super::AbelGroup::new(0), e: [0; qq()] });
+    assert_eq!(MultiGroup::<f32>::zero(), MultiGroup { a: (0., 0.), b: 0., c: 0., d: super::AbelGroup::new(0.), e: [0.; qq()] });
+    assert_eq!(MultiGroup::<f64>::zero(), MultiGroup { a: (0., 0.), b: 0., c: 0., d: super::AbelGroup::new(0.), e: [0.; qq()] });
   }
 
   #[test]
@@ -160,7 +162,7 @@ mod tests {
 
   #[test]
   fn multi_add() {
-    fn inner<T: super::GenAbelGroup<_> + From<i8> + PartialEq + Debug + Clone>(x: &MultiGroup<i8>, y: &MultiGroup<i8>) {
+    fn inner<T: super::GenAbelGroup<NumAdd> + From<i8> + PartialEq + Debug + Clone>(x: &MultiGroup<i8>, y: &MultiGroup<i8>) {
       let a: MultiGroup<T> = x.clone().into();
       let b: MultiGroup<T> = y.clone().into();
 
@@ -179,14 +181,14 @@ mod tests {
       a: (-7, 9),
       b: 42,
       c: 18,
-      d: super::AbelGroup(-1),
+      d: super::AbelGroup::new(-1),
       e: [4, 2, -6, 0, 77],
     };
     let b = MultiGroup {
       a: (22, 42),
       b: -13,
       c: -64,
-      d: super::AbelGroup(66),
+      d: super::AbelGroup::new(66),
       e: [50, 49, 48, 47, 46],
     };
 
@@ -219,16 +221,16 @@ mod tests {
     }
   }
 
-  impl<T: super::GenAbelGroup> MultiGroup<T> {
-    pub fn into<U: super::GenAbelGroup>(self) -> MultiGroup<U> where T: Into<U> {
+  impl<T: super::GenAbelGroup<NumAdd>> MultiGroup<T> {
+    pub fn into<U: super::GenAbelGroup<NumAdd>>(self) -> MultiGroup<U> where T: Into<U> {
       MultiGroup::from(self)
     }
-    pub fn from<U: super::GenAbelGroup + Into<T>>(value: MultiGroup<U>) -> Self {
+    pub fn from<U: super::GenAbelGroup<NumAdd> + Into<T>>(value: MultiGroup<U>) -> Self {
       Self {
         a: (value.a.0.into(), value.a.1.into()),
         b: value.b.into(),
         c: value.c.into(),
-        d: super::AbelGroup(value.d.0.into()),
+        d: super::AbelGroup::from(value.d.0),
         e: value.e.map(Into::into)
       }
     }

@@ -1,6 +1,8 @@
 use quote::{quote, ToTokens};
 use syn::{Path, Data, Ident, DataStruct, parse_quote, Fields, FieldsNamed, punctuated::Punctuated, GenericParam, TypeParam, TraitBound, TypeParamBound, parse::Parse, FieldsUnnamed, Token};
 
+use super::attr_repr::PathSpecifier;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DataQuote {
   Unit,
@@ -36,7 +38,7 @@ type TokenStream = quote::__private::TokenStream;
 
 
 impl DataQuote {
-  pub fn quote(&self, lhs_path: &Path, rhs_path: &Path, paths: &DataQuotePaths, ident: &Ident, data: &Data) -> TokenStream {
+  pub fn quote(&self, lhs_path: &Path, rhs_path: &Path, paths: &DataQuotePaths, ident: &Ident, trait_path: &PathSpecifier, data: &Data) -> TokenStream {
     let rhs_path = match self {
       Self::OwnBor | Self::RefBor | Self::MutBor => parse_quote!(&#rhs_path.borrow()),
       Self::Unit | Self::Own | Self::Ref | Self::Mut | Self::OwnOwn | Self::RefOwn | Self::MutOwn => parse_quote!(#rhs_path),
@@ -48,7 +50,7 @@ impl DataQuote {
             let mut fields = Punctuated::<syn::FieldValue, syn::Token![,]>::new();
             for n in named {
               let val = n.ident.as_ref().unwrap();
-              let (a, b) = self.resolve_field_named(paths, &n.ty, val, lhs_path, &rhs_path);
+              let (a, b) = self.resolve_field_named(paths, trait_path, &n.ty, val, lhs_path, &rhs_path);
               fields.push(parse_quote!(#a: #b));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
@@ -58,7 +60,7 @@ impl DataQuote {
             let mut fields = Punctuated::<syn::Expr, syn::Token![,]>::new();
             for (i, n) in unnamed.iter().enumerate() {
               let idx = syn::Index::from(i);
-              fields.push(self.resolve_field_unnamed(paths, &n.ty, &idx, lhs_path, &rhs_path));
+              fields.push(self.resolve_field_unnamed(paths, trait_path, &n.ty, &idx, lhs_path, &rhs_path));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
             quote!(#ident ( #fields ))
@@ -67,7 +69,7 @@ impl DataQuote {
             let mut assignments = Punctuated::<syn::Expr, syn::Token![; ]>::new();
             for n in named {
               let val = n.ident.as_ref().unwrap();
-              let (_, b) = self.resolve_field_named(paths, &n.ty, val, lhs_path, &rhs_path);
+              let (_, b) = self.resolve_field_named(paths, trait_path, &n.ty, val, lhs_path, &rhs_path);
               assignments.push(b);
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
@@ -77,7 +79,7 @@ impl DataQuote {
             let mut assignments = Punctuated::<syn::Expr, syn::Token![; ]>::new();
             for (i, n) in unnamed.iter().enumerate() {
               let idx = syn::Index::from(i);
-              assignments.push(self.resolve_field_unnamed(paths, &n.ty, &idx, lhs_path, &rhs_path));
+              assignments.push(self.resolve_field_unnamed(paths, trait_path, &n.ty, &idx, lhs_path, &rhs_path));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
             assignments.to_token_stream()
@@ -90,7 +92,7 @@ impl DataQuote {
     }
   }
 
-  pub fn chain_bool(&self, lhs_path: &Path, rhs_path: &Path, paths: &DataQuotePaths, data: &Data) -> TokenStream {
+  pub fn chain_bool(&self, lhs_path: &Path, rhs_path: &Path, paths: &DataQuotePaths, trait_path: &PathSpecifier, data: &Data) -> TokenStream {
     let rhs_path: syn::Expr = match self {
       Self::OwnBor | Self::RefBor | Self::MutBor => parse_quote!(&#rhs_path.borrow()),
       Self::Unit | Self::Own | Self::Ref | Self::Mut | Self::OwnOwn | Self::RefOwn | Self::MutOwn => parse_quote!(#rhs_path),
@@ -102,7 +104,7 @@ impl DataQuote {
             let mut fields = Punctuated::<syn::Expr, syn::Token![ && ]>::new();
             for n in named {
               let val = n.ident.as_ref().unwrap();
-              fields.push(self.chain_bool_rec(paths, &n.ty, val, lhs_path, &rhs_path));
+              fields.push(self.chain_bool_rec(paths, trait_path, &n.ty, val, lhs_path, &rhs_path));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
             quote!(#fields)
@@ -111,7 +113,7 @@ impl DataQuote {
             let mut fields = Punctuated::<syn::Expr, syn::Token![ && ]>::new();
             for (i, n) in unnamed.iter().enumerate() {
               let idx = syn::Index::from(i);
-              fields.push(self.chain_bool_rec(paths, &n.ty, &idx, lhs_path, &rhs_path));
+              fields.push(self.chain_bool_rec(paths, trait_path, &n.ty, &idx, lhs_path, &rhs_path));
             }
             // println!("{:?}", fields.iter().collect::<Vec<_>>());
             quote!(#fields)
@@ -123,15 +125,15 @@ impl DataQuote {
     }
   }
 
-  fn resolve_field_named<'a>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &Ident, lhs: &Path, rhs: &syn::Expr) -> (Path, syn::Expr) {
-    self.resolve_field_rec(paths, ty, val, lhs, rhs)
+  fn resolve_field_named<'a>(&self, paths: &'a DataQuotePaths, trait_path: &PathSpecifier, ty: &syn::Type, val: &Ident, lhs: &Path, rhs: &syn::Expr) -> (Path, syn::Expr) {
+    self.resolve_field_rec(paths, trait_path, ty, val, lhs, rhs)
   }
 
-  fn resolve_field_unnamed<'a>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &syn::Index, lhs: &Path, rhs: &syn::Expr) -> syn::Expr {
-    self.resolve_field_rec::<syn::Index, _>(paths, ty, val, lhs, rhs).1
+  fn resolve_field_unnamed<'a>(&self, paths: &'a DataQuotePaths, trait_path: &PathSpecifier, ty: &syn::Type, val: &syn::Index, lhs: &Path, rhs: &syn::Expr) -> syn::Expr {
+    self.resolve_field_rec::<syn::Index, _>(paths, trait_path, ty, val, lhs, rhs).1
   }
 
-  fn resolve_field_rec<'a, P: Parse, Q: Parse>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> (P, Q) {
+  fn resolve_field_rec<'a, P: Parse, Q: Parse>(&self, paths: &'a DataQuotePaths, trait_path: &PathSpecifier, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> (P, Q) {
     let lhs_val = match self {
       Self::Unit => ty.to_token_stream(),
       Self::Own | Self::OwnOwn | Self::OwnBor => quote!(#lhs.#val),
@@ -199,10 +201,20 @@ impl DataQuote {
 
         if !is_unit_type {
           let fn_path = paths.select_path_for(p_path).to_token_stream();
+          let t_path_kind = &trait_path.kind;
+          // let t_path: syn::Expr = parse_quote!(_ as #t_path_kind);
+          // panic!("{}", t_path.to_token_stream());
+          // panic!("{}", trait_path.to_token_stream());
+          // match self.kind() {
+          //   OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
+          //   OpKind::Unary => parse_quote!(#lhs_val.#fn_path()),
+          //   OpKind::Binary => parse_quote!(#lhs_val.#fn_path(#rhs.#val)),
+          // }
+
           match self.kind() {
             OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
-            OpKind::Unary => parse_quote!(#lhs_val.#fn_path()),
-            OpKind::Binary => parse_quote!(#lhs_val.#fn_path(#rhs.#val)),
+            OpKind::Unary => parse_quote!(<_ as #t_path_kind>::#fn_path(#lhs_val)),
+            OpKind::Binary => parse_quote!(<_ as #t_path_kind>::#fn_path(#lhs_val, #rhs.#val)),
           }
         } else {
           if self.in_place() {
@@ -219,6 +231,7 @@ impl DataQuote {
           .enumerate()
           .map(|(i, t)| self.resolve_field_rec::<TokenStream, syn::Expr>(
               paths,
+              trait_path,
               t,
               &syn::Index::from(i),
               &quote!(#lhs.#val),
@@ -234,7 +247,7 @@ impl DataQuote {
     (parse_quote!(#val), parsed_val)
   }
 
-  fn chain_bool_rec<'a, P: Parse>(&self, paths: &'a DataQuotePaths, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> P {
+  fn chain_bool_rec<'a, P: Parse>(&self, paths: &'a DataQuotePaths, trait_path: &PathSpecifier, ty: &syn::Type, val: &(impl Parse + ToTokens), lhs: &(impl Parse + ToTokens), rhs: &(impl Parse + ToTokens)) -> P {
     let lhs_val = match self {
       Self::Unit => ty.to_token_stream(),
       Self::Own | Self::OwnOwn | Self::OwnBor => quote!(#lhs.#val),
@@ -270,6 +283,7 @@ impl DataQuote {
         // let p_ident = p_ident_path.as_ref().and_then(syn::Path::get_ident).or(p_path.get_ident());
 
         if !is_unit_type {
+          panic!("{}", p_path.to_token_stream());
           let fn_path = paths.select_path_for(p_path).to_token_stream();
           match self.kind() {
             OpKind::Unit => parse_quote!(<#p_path>::#fn_path()),
@@ -286,6 +300,7 @@ impl DataQuote {
           .enumerate()
           .map(|(i, t)| self.chain_bool_rec::<syn::Expr>(
               paths,
+              trait_path,
               t,
               &syn::Index::from(i),
               &quote!(#lhs.#val),

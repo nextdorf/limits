@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use syn::{DeriveInput, GenericParam, parse_quote, TypeParam};
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use crate::util::{
   attr_repr::AttrRepr,
@@ -33,14 +33,16 @@ pub(crate) fn group_wrapper_impl(input: &DeriveInput, kind: GenGroupKind) -> Tok
 
   let self_path = parse_quote!(self);
   let rhs_path = parse_quote!(rhs);
-  let t_idents = DataQuotePaths::t_idents_from(gen_group, input.generics.params.iter());
+  let t_idents = DataQuotePaths::t_idents_from(&gen_group.base, input.generics.params.iter());
 
-  // panic!("{:?}", unit_idents);
+  // panic!("{}", gen_group.to_token_stream());
+  // let gen_group = todo!();
 
   let mut path_choice = GroupDataQuotePaths::new(t_idents.clone(), unit_idents, kind, &attrs);
 
 
-  let quote_params = QuoteParams::new(&self_path, &rhs_path, ident, &input.data);
+  let quote_params = QuoteParams::new(&self_path, &rhs_path, ident, gen_group, &input.data);
+
 
   let own_rhs_quote = {
     let (mult_expr, mult_fn_path, mult_trait_path) = quote_params.quote(

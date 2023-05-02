@@ -2,7 +2,7 @@ use syn::parse_quote;
 
 use crate::util::data_quote::{DataQuote, DataQuotePaths};
 
-use super::attr_repr::AttrRepr;
+use super::attr_repr::{AttrRepr, PathSpecifier};
 type TokenStream = quote::__private::TokenStream;
 
 #[derive(Clone)]
@@ -51,6 +51,7 @@ pub struct QuoteParams<'a> {
   pub lhs_path: &'a syn::Path,
   pub rhs_path: &'a syn::Path,
   pub ident: &'a syn::Ident,
+  pub trait_path: &'a PathSpecifier,
   pub data: &'a syn::Data
 }
 
@@ -104,26 +105,26 @@ impl GroupDataQuotePaths {
     Self::new_base(
       t_idents,
       unit_idents,
-      TraitImplPaths::new(parse_quote!(add), parse_quote!(std::ops::Add)),
-      TraitImplPaths::new(parse_quote!(add), parse_quote!(std::ops::Add)),
-      TraitImplPaths::new(parse_quote!(add), parse_quote!(std::ops::Add)),
-      TraitImplPaths::new(parse_quote!(add), parse_quote!(std::ops::Add)),
-      TraitImplPaths::new(parse_quote!(add_assign), parse_quote!(std::ops::AddAssign)),
-      TraitImplPaths::new(parse_quote!(add_assign), parse_quote!(std::ops::AddAssign)),
+      TraitImplPaths::new(parse_quote!(add), parse_quote!(::core::ops::Add)),
+      TraitImplPaths::new(parse_quote!(add), parse_quote!(::core::ops::Add)),
+      TraitImplPaths::new(parse_quote!(add), parse_quote!(::core::ops::Add)),
+      TraitImplPaths::new(parse_quote!(add), parse_quote!(::core::ops::Add)),
+      TraitImplPaths::new(parse_quote!(add_assign), parse_quote!(::core::ops::AddAssign)),
+      TraitImplPaths::new(parse_quote!(add_assign), parse_quote!(::core::ops::AddAssign)),
 
-      TraitImplPaths::new(parse_quote!(sub), parse_quote!(std::ops::Sub)),
-      TraitImplPaths::new(parse_quote!(sub), parse_quote!(std::ops::Sub)),
-      TraitImplPaths::new(parse_quote!(sub), parse_quote!(std::ops::Sub)),
-      TraitImplPaths::new(parse_quote!(sub), parse_quote!(std::ops::Sub)),
-      TraitImplPaths::new(parse_quote!(sub_assign), parse_quote!(std::ops::SubAssign)),
-      TraitImplPaths::new(parse_quote!(sub_assign), parse_quote!(std::ops::SubAssign)),
+      TraitImplPaths::new(parse_quote!(sub), parse_quote!(::core::ops::Sub)),
+      TraitImplPaths::new(parse_quote!(sub), parse_quote!(::core::ops::Sub)),
+      TraitImplPaths::new(parse_quote!(sub), parse_quote!(::core::ops::Sub)),
+      TraitImplPaths::new(parse_quote!(sub), parse_quote!(::core::ops::Sub)),
+      TraitImplPaths::new(parse_quote!(sub_assign), parse_quote!(::core::ops::SubAssign)),
+      TraitImplPaths::new(parse_quote!(sub_assign), parse_quote!(::core::ops::SubAssign)),
 
       TraitImplPaths::new(parse_quote!(zero), zero_path.clone()),
       TraitImplPaths::new(parse_quote!(set_zero), zero_path.clone()),
       TraitImplPaths::new(parse_quote!(is_zero), zero_path.clone()),
 
-      TraitImplPaths::new(parse_quote!(neg), parse_quote!(std::ops::Neg)),
-      TraitImplPaths::new(parse_quote!(neg), parse_quote!(std::ops::Neg)),
+      TraitImplPaths::new(parse_quote!(neg), parse_quote!(::core::ops::Neg)),
+      TraitImplPaths::new(parse_quote!(neg), parse_quote!(::core::ops::Neg)),
     )
   }
 
@@ -134,19 +135,19 @@ impl GroupDataQuotePaths {
     Self::new_base(
       t_idents,
       unit_idents,
-      TraitImplPaths::new(parse_quote!(mul), parse_quote!(std::ops::Mul)),
-      TraitImplPaths::new(parse_quote!(mul), parse_quote!(std::ops::Mul)),
-      TraitImplPaths::new(parse_quote!(mul), parse_quote!(std::ops::Mul)),
-      TraitImplPaths::new(parse_quote!(mul), parse_quote!(std::ops::Mul)),
-      TraitImplPaths::new(parse_quote!(mul_assign), parse_quote!(std::ops::MulAssign)),
-      TraitImplPaths::new(parse_quote!(mul_assign), parse_quote!(std::ops::MulAssign)),
+      TraitImplPaths::new(parse_quote!(mul), parse_quote!(::core::ops::Mul)),
+      TraitImplPaths::new(parse_quote!(mul), parse_quote!(::core::ops::Mul)),
+      TraitImplPaths::new(parse_quote!(mul), parse_quote!(::core::ops::Mul)),
+      TraitImplPaths::new(parse_quote!(mul), parse_quote!(::core::ops::Mul)),
+      TraitImplPaths::new(parse_quote!(mul_assign), parse_quote!(::core::ops::MulAssign)),
+      TraitImplPaths::new(parse_quote!(mul_assign), parse_quote!(::core::ops::MulAssign)),
 
-      TraitImplPaths::new(parse_quote!(div), parse_quote!(std::ops::Div)),
-      TraitImplPaths::new(parse_quote!(div), parse_quote!(std::ops::Div)),
-      TraitImplPaths::new(parse_quote!(div), parse_quote!(std::ops::Div)),
-      TraitImplPaths::new(parse_quote!(div), parse_quote!(std::ops::Div)),
-      TraitImplPaths::new(parse_quote!(div_assign), parse_quote!(std::ops::DivAssign)),
-      TraitImplPaths::new(parse_quote!(div_assign), parse_quote!(std::ops::DivAssign)),
+      TraitImplPaths::new(parse_quote!(div), parse_quote!(::core::ops::Div)),
+      TraitImplPaths::new(parse_quote!(div), parse_quote!(::core::ops::Div)),
+      TraitImplPaths::new(parse_quote!(div), parse_quote!(::core::ops::Div)),
+      TraitImplPaths::new(parse_quote!(div), parse_quote!(::core::ops::Div)),
+      TraitImplPaths::new(parse_quote!(div_assign), parse_quote!(::core::ops::DivAssign)),
+      TraitImplPaths::new(parse_quote!(div_assign), parse_quote!(::core::ops::DivAssign)),
 
       TraitImplPaths::new(parse_quote!(one), one_path.clone()),
       TraitImplPaths::new(parse_quote!(set_one), one_path.clone()),
@@ -220,18 +221,19 @@ impl GroupDataQuotePaths {
 // impl<'x> QuoteParams<'x> {
 //   pub const fn new<'a:'x,'b:'x, 'c:'x, 'd:'x>(lhs_path: &'a syn::Path, rhs_path: &'b syn::Path, ident: &'c syn::Ident, data: &'d syn::Data) -> Self {
 impl<'a> QuoteParams<'a> {
-  pub const fn new(lhs_path: &'a syn::Path, rhs_path: &'a syn::Path, ident: &'a syn::Ident, data: &'a syn::Data) -> Self {
+  pub const fn new(lhs_path: &'a syn::Path, rhs_path: &'a syn::Path, ident: &'a syn::Ident, trait_path: &'a PathSpecifier, data: &'a syn::Data) -> Self {
     Self {
       lhs_path,
       rhs_path,
       ident,
+      trait_path,
       data,
     }
   }
 
   pub fn quote(&self, data_quote: DataQuote, args: (&DataQuotePaths, TraitImplPaths)) -> QuoteRes {
     let (paths, trait_impl_paths) = args;
-    let expr = data_quote.quote(self.lhs_path, self.rhs_path, paths, self.ident, self.data);
+    let expr = data_quote.quote(self.lhs_path, self.rhs_path, paths, self.ident, self.trait_path, self.data);
     QuoteRes {
       expr,
       trait_impl_paths,
@@ -240,7 +242,7 @@ impl<'a> QuoteParams<'a> {
 
   pub fn chain_bool(&self, data_quote: DataQuote, args: (&DataQuotePaths, TraitImplPaths)) -> QuoteRes {
     let (paths, trait_impl_paths) = args;
-    let expr = data_quote.chain_bool(self.lhs_path, self.rhs_path, paths, self.data);
+    let expr = data_quote.chain_bool(self.lhs_path, self.rhs_path, paths, self.trait_path, self.data);
     QuoteRes {
       expr,
       trait_impl_paths,

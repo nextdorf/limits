@@ -74,9 +74,30 @@ pub(crate) fn wrapper_deref_impl(input: &DeriveInput) -> TokenStream {
   // (<T: GenGroup>, <T>, None)
   let (impl_gen, type_gen, where_clause) = input.generics.split_for_impl();
 
+  let new_expr_args_for_value = {
+    let mut expr = Punctuated::<syn::Expr, Token![,]>::new();
+    match &input.data {
+      syn::Data::Struct(s) => match &s.fields {
+        syn::Fields::Unnamed(syn::FieldsUnnamed { unnamed, .. }) => {
+          for (i, _) in unnamed.iter().enumerate() {
+            if i == t_idx.index as _ {
+              expr.push(syn::parse_quote!(value))
+            } else {
+              expr.push(syn::parse_quote!(Default::default()))
+            }
+          }
+        },
+        _ => todo!(),
+      },
+      _ => todo!(),
+    }
+    quote!{use ::core::default::Default; Self(#expr)}
+  };
+  // panic!("{}", new_expr_args_for_value);
+
   let mut res = vec![
     quote! {
-      impl #impl_gen std::ops::Deref for #ident #type_gen #where_clause {
+      impl #impl_gen ::core::ops::Deref for #ident #type_gen #where_clause {
         type Target = #t;
         
         fn deref(&self) -> &#t {
@@ -85,12 +106,12 @@ pub(crate) fn wrapper_deref_impl(input: &DeriveInput) -> TokenStream {
       }
 
       impl #impl_gen #ident #type_gen #where_clause {
-        // pub fn from<U: Into<#t>>(value: U) -> Self {
-        //   Self(value.into())
-        // }
+        pub fn new(value: #t) -> Self {
+          #new_expr_args_for_value
+        }
 
-        pub fn into<U>(self) -> U where #t: Into<U> {
-          self.#t_idx.into()
+        pub fn from<U: Into<#t>>(value: U) -> Self {
+          Self::new(value.into())
         }
       }
     }.into()
@@ -98,7 +119,7 @@ pub(crate) fn wrapper_deref_impl(input: &DeriveInput) -> TokenStream {
   if is_pub {
     res.push(
       quote! {
-        impl #impl_gen std::ops::DerefMut for #ident #type_gen #where_clause {
+        impl #impl_gen ::core::ops::DerefMut for #ident #type_gen #where_clause {
           fn deref_mut(&mut self) -> &mut #t {
             &mut self.#t_idx
           }

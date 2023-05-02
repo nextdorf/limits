@@ -112,6 +112,8 @@ pub trait NumFieldOp: From<Self::Real> {
 
 // pub struct UnitGroup
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NumAdd;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NumMul;
 
