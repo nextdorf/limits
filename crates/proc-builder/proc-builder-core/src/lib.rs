@@ -6,6 +6,7 @@ pub mod iter_async;
 
 pub use derive_trait_builder::*;
 pub use attribute_builder::*;
+pub use iter_async::IterAsync;
 
 pub type TokenStream = syn::__private::TokenStream;
 

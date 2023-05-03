@@ -7,7 +7,7 @@ pub struct DeriveTraitBuilder {
 }
 
 impl DeriveTraitBuilder {
-  pub fn derive_impl(&self, input: &DeriveInput) -> TokenStream {
+  pub fn derive_impl(&self, _input: &DeriveInput) -> TokenStream {
     todo!()
   }
 }

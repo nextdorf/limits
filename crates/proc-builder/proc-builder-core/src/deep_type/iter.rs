@@ -1,43 +1,35 @@
-use std::{task::{Waker, Context}, pin::Pin};
-
-use futures::{Future, FutureExt, task::noop_waker, future::LocalBoxFuture};
+use futures::{FutureExt, future::LocalBoxFuture};
 use quote::ToTokens;
-use syn::{Data, parse_quote, Ident, Type, TypePath, DataStruct, Token};
+use syn::{parse_quote, Ident, Type, TypePath, DataStruct};
 
 use proc_macro2::TokenStream;
 
 use super::{DeepTypeValue, DeepTypeKind};
 
-pub struct Iter<'a> {
-  waker: Waker,
-  next_val: Pin<Box<Option<DeepTypeValue>>>,
-  future: Pin<Box<dyn Future<Output = ()> + 'a>>,
-}
+use crate::{IterAsync, yield_async};
 
-macro_rules! return_async {
-  ($out:ident <- $val:expr) => {{
-    *$out = Some($val);
-    futures::pending!()
-  }};
-  ($out:ident) => {
-    *$out = None
-  }
-}
+pub type Iter<'a> = IterAsync<'a, DeepTypeValue>;
+
+
+// macro_rules! return_async {
+//   ($out:ident <- $val:expr) => {{
+//     *$out = Some($val);
+//     futures::pending!()
+//   }};
+//   ($out:ident) => {
+//     *$out = None
+//   }
+// }
 
 
 impl<'a> Iter<'a> {
-  pub fn new(ident: &'a Ident, data: &'a DataStruct) -> Self {
-    let mut next_val: Pin<Box<Option<DeepTypeValue>>> = Pin::new(Box::new(None));
-    let future = unsafe {
-      let next_val = (&mut *next_val) as *mut Option<DeepTypeValue>;
-      let next_val = next_val.as_mut().unwrap();
-      Self::iter_data(ident, data, next_val).fuse().boxed_local()
-    };
-    Self {
-      waker: noop_waker(),
-      next_val,
-      future,
-    }
+  pub fn new_from_data(ident: &'a Ident, data: &'a DataStruct) -> Self {
+    // let future = unsafe {
+    //   let next_val = (&mut *next_val) as *mut Option<DeepTypeValue>;
+    //   let next_val = next_val.as_mut().unwrap();
+    //   Self::iter_data(ident, data, next_val).fuse().boxed_local()
+    // };
+    Self::new_without_waker(|out| Self::iter_data(ident, data, out))
   }
 
   async fn iter_data(ident: &Ident, data: &DataStruct, out: &mut Option<DeepTypeValue>) {
@@ -45,7 +37,7 @@ impl<'a> Iter<'a> {
       async move {
         match ty {
           Type::Array(_) | Type::Path(_) | Type::Ptr(_) | Type::Reference(_) | Type::Slice(_) => {
-            return_async!(out <- DeepTypeValue { path: fs, ty: ty.clone(), kind })
+            yield_async!(out <- DeepTypeValue { path: fs, ty: ty.clone(), kind })
           },
           Type::Tuple(ts) => {
             for (i, elem) in ts.elems.iter().enumerate() {
@@ -86,10 +78,10 @@ impl<'a> Iter<'a> {
       },
       syn::Fields::Unit => {
         let ty = Type::Path(TypePath { qself: None, path: parse_quote!(#ident) });
-        return_async!(out <- DeepTypeValue { path: Vec::new(), ty, kind: DeepTypeKind::UnitStructElem })
+        yield_async!(out <- DeepTypeValue { path: Vec::new(), ty, kind: DeepTypeKind::UnitStructElem })
       },
     }
-    return_async!(out);
+    yield_async!(out);
   }
 }
 
@@ -97,29 +89,29 @@ impl<'a> Iter<'a> {
 
 
 
-impl<'a> Iterator for Iter<'a> {
-  type Item = DeepTypeValue;
+// impl<'a> Iterator for Iter<'a> {
+//   type Item = DeepTypeValue;
 
-  fn next(&mut self) -> Option<Self::Item> {
-    // self.waker.wake_by_ref();
-    *self.next_val = None;
-    loop {
-      let mut ctx = Context::from_waker(&self.waker);
-      match self.future.as_mut().poll(&mut ctx) {
-        std::task::Poll::Pending if self.next_val.is_none() => {},
-        _ => break,
-      }
-    }
-    (*self.next_val).clone()
-  }
-}
+//   fn next(&mut self) -> Option<Self::Item> {
+//     // self.waker.wake_by_ref();
+//     *self.next_val = None;
+//     loop {
+//       let mut ctx = Context::from_waker(&self.waker);
+//       match self.future.as_mut().poll(&mut ctx) {
+//         std::task::Poll::Pending if self.next_val.is_none() => {},
+//         _ => break,
+//       }
+//     }
+//     (*self.next_val).clone()
+//   }
+// }
 
 
 
 #[test]
 fn test_iter_data() {
   use crate::types::InputDataAccess;
-  use syn::{DeriveInput, punctuated::Punctuated};
+  use syn::{Data, Token, DeriveInput, punctuated::Punctuated};
   use quote::{quote};
 
   let data: DeriveInput = parse_quote!(
@@ -132,7 +124,7 @@ fn test_iter_data() {
 
   let base = parse_quote!(x);
   let exprs = if let Data::Struct(s) = &data.data {
-    Iter::new(&data.ident, s)
+    Iter::new_from_data(&data.ident, s)
       .map(|x| x.as_expr(InputDataAccess::Owned, &base))
       .collect::<Punctuated<_, Token![,]>>()
   } else { panic!() };

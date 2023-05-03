@@ -55,7 +55,7 @@ impl DeepTypeBuilder {
     if let syn::Fields::Unit = data.fields {
       return Ok(parse_quote!(#ident));
     }
-    let iter = Iter::new(ident, data).collect::<Vec<_>>();
+    let iter = Iter::new_from_data(ident, data).collect::<Vec<_>>();
     let expr_inputs = expr_inputs.collect::<Vec<_>>();
     // let xss = expr_inputs.map(|(acc, expr)| iter.clone().into_iter());
     let xss = match expr_inputs.len() {
@@ -244,7 +244,7 @@ fn build_struct_example() {
   );
   // let base = parse_quote!(x);
   let iter = if let syn::Data::Struct(s) = &data.data {
-    Iter::new(&data.ident, s)
+    Iter::new_from_data(&data.ident, s)
   } else {
     panic!()
   };
