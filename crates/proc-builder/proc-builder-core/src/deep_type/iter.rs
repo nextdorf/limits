@@ -1,34 +1,14 @@
 use futures::{FutureExt, future::LocalBoxFuture};
 use quote::ToTokens;
 use syn::{parse_quote, Ident, Type, TypePath, DataStruct};
-
 use proc_macro2::TokenStream;
-
 use super::{DeepTypeValue, DeepTypeKind};
-
 use crate::{IterAsync, yield_async};
-
 pub type Iter<'a> = IterAsync<'a, DeepTypeValue>;
-
-
-// macro_rules! return_async {
-//   ($out:ident <- $val:expr) => {{
-//     *$out = Some($val);
-//     futures::pending!()
-//   }};
-//   ($out:ident) => {
-//     *$out = None
-//   }
-// }
 
 
 impl<'a> Iter<'a> {
   pub fn new_from_data(ident: &'a Ident, data: &'a DataStruct) -> Self {
-    // let future = unsafe {
-    //   let next_val = (&mut *next_val) as *mut Option<DeepTypeValue>;
-    //   let next_val = next_val.as_mut().unwrap();
-    //   Self::iter_data(ident, data, next_val).fuse().boxed_local()
-    // };
     Self::new_without_waker(|out| Self::iter_data(ident, data, out))
   }
 
@@ -86,33 +66,17 @@ impl<'a> Iter<'a> {
 }
 
 
-
-
-
-// impl<'a> Iterator for Iter<'a> {
-//   type Item = DeepTypeValue;
-
-//   fn next(&mut self) -> Option<Self::Item> {
-//     // self.waker.wake_by_ref();
-//     *self.next_val = None;
-//     loop {
-//       let mut ctx = Context::from_waker(&self.waker);
-//       match self.future.as_mut().poll(&mut ctx) {
-//         std::task::Poll::Pending if self.next_val.is_none() => {},
-//         _ => break,
-//       }
-//     }
-//     (*self.next_val).clone()
-//   }
-// }
-
-
-
 #[test]
 fn test_iter_data() {
-  use crate::types::InputDataAccess;
+  use crate::types::{InputDataAccess, AccessExpr};
   use syn::{Data, Token, DeriveInput, punctuated::Punctuated};
   use quote::{quote};
+
+  fn without_whitespace<S: ToString>(s: &S) -> String {
+    let mut s = s.to_string();
+    s.retain(|ch| !ch.is_whitespace());
+    s
+  }
 
   let data: DeriveInput = parse_quote!(
     struct A {
@@ -123,11 +87,13 @@ fn test_iter_data() {
   );
 
   let base = parse_quote!(x);
+
   let exprs = if let Data::Struct(s) = &data.data {
     Iter::new_from_data(&data.ident, s)
-      .map(|x| x.as_expr(InputDataAccess::Owned, &base))
+      // .map(|x| x.as_expr(InputDataAccess::Owned, &base))
+      .map(|x| x.as_expr(AccessExpr::new(InputDataAccess::Owned, &base)))
       .collect::<Punctuated<_, Token![,]>>()
   } else { panic!() };
-  assert_eq!(quote!(#exprs).to_string(), "x . vals . 0 , x . vals . 1 , x . num , x . bytes")
+  assert_eq!(without_whitespace(&quote!(#exprs)), without_whitespace(&"x.vals.0, x.vals.1, x.num, x.bytes"))
 }
 
