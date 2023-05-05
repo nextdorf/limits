@@ -212,50 +212,43 @@ impl Parse for FnBuilder {
   }
 }
 
-#[test]
-fn parse_fn_arg() {
+
+#[cfg(test)]
+mod tests {
   use std::str::FromStr;
-  use crate::tests::assert_eq_wo_whitespace;
+  use quote::ToTokens;
+  use syn::parse::Parse;
+  use crate::{tests::assert_eq_wo_whitespace, FnArgBuilder, FnBuilder};
 
-  fn parse_assert(s: &str) {
-    parse_assert_against(s, s)
+  fn parse_assert<T: Parse + ToTokens>(s: &str) {
+    parse_assert_against::<T>(s, s)
   }
-
-  fn parse_assert_against(s: &str, target: &str) {
+  
+  fn parse_assert_against<T: Parse + ToTokens>(s: &str, target: &str) {
     let s_tokens = proc_macro2::TokenStream::from_str(s).unwrap();
-    let res: FnArgBuilder = syn::parse2(s_tokens).unwrap();
+    let res: T = syn::parse2(s_tokens).unwrap();
     assert_eq_wo_whitespace(res.to_token_stream(), target)
   }
 
-  parse_assert("&mut self");
-  // parse_assert("mut self");
-  parse_assert("&self");
-  parse_assert("x: A");
-  parse_assert("x: &A");
-  parse_assert("x: &mut A");
-  parse_assert("x: (A, B)");
-  parse_assert("x: (A,)");
-  parse_assert_against("x: (A)", "x: A");
-}
-
-#[test]
-fn parse_fn() {
-  use std::str::FromStr;
-  use crate::tests::assert_eq_wo_whitespace;
-
-  fn parse_assert(s: &str) {
-    parse_assert_against(s, s)
+  #[test]
+  fn parse_fn_arg() {
+    parse_assert::<FnArgBuilder>("&mut self");
+    // parse_assert::<FnArgBuilder>("mut self");
+    parse_assert::<FnArgBuilder>("&self");
+    parse_assert::<FnArgBuilder>("x: A");
+    parse_assert::<FnArgBuilder>("x: &A");
+    parse_assert::<FnArgBuilder>("x: &mut A");
+    parse_assert::<FnArgBuilder>("x: (A, B)");
+    parse_assert::<FnArgBuilder>("x: (A,)");
+    parse_assert_against::<FnArgBuilder>("x: (A)", "x: A");
   }
 
-  fn parse_assert_against(s: &str, target: &str) {
-    let s_tokens = proc_macro2::TokenStream::from_str(s).unwrap();
-    let res: FnBuilder = syn::parse2(s_tokens).unwrap();
-    assert_eq_wo_whitespace(res.to_token_stream(), target)
+  #[test]
+  fn parse_fn() {
+    parse_assert::<FnBuilder>("fn foo_bar(self) {}");
+    parse_assert::<FnBuilder>("pub(crate) fn foo_bar(&mut self, x: &A) -> Self { Self(x.value) }");
+    parse_assert::<FnBuilder>("pub fn foo_bar<'a>(x: &A) where A: Clone { x.clone(); }");
+    parse_assert::<FnBuilder>("fn foo_bar(&self, x: &B) -> Self where B: ::core::borrow::Borrow<Self> { Self(&self.0 + &x.borrow().0) }");
   }
-
-  parse_assert("fn foo_bar(self) {}");
-  parse_assert("pub(crate) fn foo_bar(&mut self, x: &A) -> Self { Self(x.value) }");
-  parse_assert("pub fn foo_bar<'a>(x: &A) where A: Clone { x.clone(); }");
-  parse_assert("fn foo_bar(&self, x: &B) -> Self where B: ::core::borrow::Borrow<Self> { Self(&self.0 + &x.borrow().0) }");
 }
 
