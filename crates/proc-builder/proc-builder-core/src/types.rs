@@ -23,6 +23,12 @@ pub struct AccessExpr<'a> {
   pub base: &'a syn::Expr
 }
 
+#[derive(Clone)]
+pub struct AccessExprOwned {
+  pub access: InputDataAccess,
+  pub base: syn::Expr
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OutputDataShape {
@@ -67,6 +73,24 @@ impl<'a> AccessExpr<'a> {
     Self { access, base }
   }
 }
+
+impl AccessExprOwned {
+  pub const fn new(access: InputDataAccess, base: syn::Expr) -> Self {
+    Self { access, base }
+  }
+
+  pub fn as_ref(&self) -> AccessExpr {
+    AccessExpr { access: self.access, base: &self.base }
+  }
+}
+
+
+impl From<AccessExpr<'_>> for AccessExprOwned {
+  fn from(value: AccessExpr) -> Self {
+    Self::new(value.access, value.base.clone())
+  }
+}
+
 
 impl ToTokens for AccessExpr<'_> {
   fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {

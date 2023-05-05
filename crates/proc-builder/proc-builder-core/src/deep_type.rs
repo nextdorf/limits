@@ -237,19 +237,13 @@ mod tests {
   use syn::{parse_quote, Token, punctuated::Punctuated};
   // use crate::new_access_expr;
 
-  use crate::types::macros::new_access_expr;
+  use crate::{types::macros::new_access_expr, tests::assert_eq_wo_whitespace};
 
   use super::{DeepTypeValue, iter::Iter, build_struct_from_iter, map_struct};
 
   #[test]
   fn build_struct_unit() {
     use syn::DeriveInput;
-
-    fn without_whitespace<S: ToString>(s: &S) -> String {
-      let mut s = s.to_string();
-      s.retain(|ch| !ch.is_whitespace());
-      s
-    }
 
     // let data: DeriveInput = parse_quote!(
     //   struct A(pub (i32, char), &'static usize, [u8; 9]);
@@ -284,9 +278,13 @@ mod tests {
 
     let res = Punctuated::<_, Token![;]>::from_iter(res.into_iter());
     // assert_eq!(res.to_token_stream().to_string(), "(x . vals . 0 + & y . vals . 0 , x . vals . 1 + & y . vals . 1) ; x . num + & y . num ; x . bytes + & y . bytes")
-    assert_eq!(
-      without_whitespace(&res.into_token_stream()),
-      without_whitespace(&"(x.vals.0 + &y.vals.0, x.vals.1 + &y.vals.1); x.num + &y.num; x.bytes + &y.bytes")
+    // assert_eq!(
+    //   without_whitespace(&res.into_token_stream()),
+    //   without_whitespace(&"(x.vals.0 + &y.vals.0, x.vals.1 + &y.vals.1); x.num + &y.num; x.bytes + &y.bytes")
+    // )
+    assert_eq_wo_whitespace(
+      res.into_token_stream(),
+      "(x.vals.0 + &y.vals.0, x.vals.1 + &y.vals.1); x.num + &y.num; x.bytes + &y.bytes"
     )
   }
 
@@ -300,12 +298,7 @@ mod tests {
         new_access_expr!(Ref, x),
         &|e| parse_quote!(#e.calc_smth())
       ).unwrap();
-      let mut s1 = res.to_token_stream().to_string();
-      let mut s2 = target.to_string();
-      s1.retain(|ch| !ch.is_whitespace());
-      s2.retain(|ch| !ch.is_whitespace());
-      assert_eq!(s1, s2)
-      // assert_eq!(res.into_token_stream().to_string(), target.to_string())
+      assert_eq_wo_whitespace(res.to_token_stream(), target)
     }
     let call_fn = quote!(calc_smth);
 
