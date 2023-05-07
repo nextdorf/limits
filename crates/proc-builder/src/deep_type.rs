@@ -46,7 +46,7 @@ impl DeepTypeValue {
 pub fn join_structs<'a>(
   ident: &Ident,
   data: &DataStruct,
-  expr_inputs: impl Iterator<Item = AccessExpr<'a>>,
+  expr_inputs: impl IntoIterator<Item = AccessExpr<'a>>,
   collector: &impl Fn(Vec<Expr>) -> TokenStream
 ) -> Result<Expr, ()>
 {
@@ -54,7 +54,7 @@ pub fn join_structs<'a>(
     return Ok(parse_quote!(#ident));
   }
   let iter = Iter::new_from_data(ident, data).collect::<Vec<_>>();
-  let expr_inputs = expr_inputs.collect::<Vec<_>>();
+  let expr_inputs = expr_inputs.into_iter().collect::<Vec<_>>();
   // let xss = expr_inputs.map(|(acc, expr)| iter.clone().into_iter());
   let xss = match expr_inputs.len() {
     0 => return Err(()),
@@ -95,6 +95,18 @@ pub fn join_structs<'a>(
     },
     Err(()) => Err(()),
   }
+}
+
+pub fn collect_struct<Sep: Default>(
+  ident: &Ident,
+  data: &DataStruct,
+  expr_access: AccessExpr,
+  collector: &impl Fn(Expr) -> TokenStream
+) -> Punctuated<Expr, Sep>
+{
+  Iter::new_from_data(ident, data)
+    .map(|val| syn::parse2::<Expr>(collector(val.as_expr(expr_access))).unwrap())
+    .collect()
 }
 
 pub fn map_struct(ident: &Ident, data: &DataStruct, access: AccessExpr, f: &impl Fn(Expr) -> TokenStream) -> Result<Expr, ()> {

@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use quote::ToTokens;
 use syn::{Ident, Type, FnArg, parse_quote, parse::{self, Parse}, ItemFn, Signature, Generics, Token, punctuated::Punctuated, Block, spanned::Spanned, ReturnType};
 
@@ -10,14 +12,16 @@ pub struct FnArgBuilder {
   pub ty: Type,
 }
 
+
+#[derive(Clone)]
 pub struct FnBuilder {
   pub vis: syn::Visibility,
   pub ident: Ident,
   pub input: Vec<FnArgBuilder>,
   pub output: ReturnType,
   pub generics: Generics,
-  pub var_store: Option<Box<dyn ::core::any::Any>>,
-  pub calc_body: Box<dyn Fn(Option<&dyn std::any::Any>) -> syn::Block>
+  pub var_store: Option<Rc<dyn ::core::any::Any>>,
+  pub calc_body: Rc<dyn Fn(Option<&dyn std::any::Any>) -> syn::Block>
 }
 
 
@@ -120,6 +124,161 @@ impl FnBuilder {
     res
   }
   
+  pub fn new(ident: Ident) -> Self {
+    fn todo_fn(_: Option<&dyn ::core::any::Any>) -> Block {
+      parse_quote!({})
+    }
+    Self {
+      vis: syn::Visibility::Inherited,
+      ident,
+      input: Vec::new(),
+      output: ReturnType::Default,
+      generics: Generics::default(),
+      var_store: None,
+      calc_body: Rc::new(todo_fn),
+    }
+  }
+
+
+  pub fn set_visibility(mut self, vis: syn::Visibility) -> Self {
+    self.vis = vis;
+    self
+  }
+
+  pub fn set_ident(mut self, ident: Ident) -> Self {
+    self.ident = ident;
+    self
+  }
+
+  pub fn set_input(mut self, input: impl IntoIterator<Item = FnArgBuilder>) -> Self {
+    self.input = input.into_iter().collect();
+    self
+  }
+
+  pub fn set_output(mut self, output: Option<Type>) -> Self {
+    self.output = output
+      .map(|ty| ReturnType::Type(parse_quote!(->), Box::new(ty)))
+      .unwrap_or(ReturnType::Default);
+    self
+  }
+
+
+  pub fn set_body_to_struct_builder(
+    mut self,
+    ident: &Ident,
+    data: &syn::DataStruct,
+    build_collector: &impl Fn(&Vec<FnArgBuilder>) -> Box<dyn Fn(Vec<syn::Expr>) -> proc_macro2::TokenStream>
+  ) -> Self {
+    use crate::deep_type::join_structs;
+    let exprs = self.input.iter().map(FnArgBuilder::get_access_expr).collect::<Vec<_>>();
+    let collector = build_collector(&self.input);
+
+    let ident = ident.clone();
+    let data = data.clone();
+    self.var_store = Some(Rc::new((ident.clone(), data.clone())));
+    self.calc_body = Rc::new(move |var| {
+      let (ident, data) = match var {
+        Some(var) => match var.downcast_ref() {
+          Some((ident, data)) => (ident, data),
+          None => (&ident, &data),
+        }
+        None => (&ident, &data),
+      };
+      let exprs = exprs.iter().map(AccessExprOwned::as_ref);
+      let collector = |es| collector(es);
+      let body_expr = join_structs(ident, data, exprs, &collector)
+        .expect("Could not join struct");
+      parse_quote!({#body_expr})
+    });
+    self
+  }
+
+  pub fn set_body_to_struct_map_builder(
+    mut self,
+    ident: &Ident,
+    data: &syn::DataStruct,
+    build_collector: &impl Fn(&FnArgBuilder) -> Box<dyn Fn(syn::Expr) -> proc_macro2::TokenStream>
+  ) -> Self {
+    use crate::deep_type::map_struct;
+
+    let input0 = match self.get_and_assert_one_arg() {
+      Some(x) => x,
+      None => return self,
+    };
+    let expr = input0.get_access_expr();
+    let collector = build_collector(input0);
+
+    let ident = ident.clone();
+    let data = data.clone();
+    self.var_store = Some(Rc::new((ident.clone(), data.clone())));
+    self.calc_body = Rc::new(move |var| {
+      let (ident, data) = match var {
+        Some(var) => match var.downcast_ref() {
+          Some((ident, data)) => (ident, data),
+          None => (&ident, &data),
+        }
+        None => (&ident, &data),
+      };
+      let expr = expr.as_ref();
+      let collector = |e| collector(e);
+      let body_expr = map_struct(ident, data, expr, &collector)
+        .expect("Could not map struct");
+      parse_quote!({#body_expr})
+    });
+    self
+  }
+
+  pub fn set_body_to_collect_builder<Sep: Default + ToTokens>(
+    mut self,
+    ident: &Ident,
+    data: &syn::DataStruct,
+    build_collector: &impl Fn(&FnArgBuilder) -> Box<dyn Fn(syn::Expr) -> proc_macro2::TokenStream>
+  ) -> Self {
+    use crate::deep_type::collect_struct;
+
+    let input0 = match self.get_and_assert_one_arg() {
+      Some(x) => x,
+      None => return self,
+    };
+    let expr = input0.get_access_expr();
+    let collector = build_collector(input0);
+
+    let ident = ident.clone();
+    let data = data.clone();
+    self.var_store = Some(Rc::new((ident.clone(), data.clone())));
+    self.calc_body = Rc::new(move |var| {
+      let (ident, data) = match var {
+        Some(var) => match var.downcast_ref() {
+          Some((ident, data)) => (ident, data),
+          None => (&ident, &data),
+        }
+        None => (&ident, &data),
+      };
+      let expr = expr.as_ref();
+      let collector = |e| collector(e);
+      let body_expr = collect_struct::<Sep>(ident, data, expr, &collector);
+        // .expect("Could not collect struct");
+      parse_quote!({#body_expr})
+    });
+    self
+  }
+
+
+  fn get_and_assert_one_arg(&self) -> Option<&FnArgBuilder> {
+    let check = if cfg!(test) {
+      assert_eq!(self.input.len(), 1);
+      true
+    } else {
+      self.input.len() == 1
+    };
+
+    if check {
+      self.input.first()
+    } else {
+      None
+    }
+  }
+
   pub fn get_body(&self) -> Block {
     self.calc_body.as_ref()(self.var_store.as_deref())
   }
@@ -205,8 +364,8 @@ impl Parse for FnBuilder {
       }
     };
 
-    let var_store: Option<Box<dyn ::core::any::Any>> = Some(block);
-    let calc_body = Box::new(just_return);
+    let var_store: Option<Rc<dyn ::core::any::Any>> = Some(Rc::new(*block));
+    let calc_body = Rc::new(just_return);
 
     Ok(Self { vis, ident, input, output, generics, var_store, calc_body })
   }
@@ -216,16 +375,16 @@ impl Parse for FnBuilder {
 #[cfg(test)]
 mod tests {
   use std::str::FromStr;
-  use quote::ToTokens;
-  use syn::parse::Parse;
+  use quote::{ToTokens, quote};
+  use syn::{parse::Parse, parse_quote, DeriveInput, Data, Expr, Token};
   use crate::{tests::assert_eq_wo_whitespace, FnArgBuilder, FnBuilder};
 
-  fn parse_assert<T: Parse + ToTokens>(s: &str) {
-    parse_assert_against::<T>(s, s)
+  fn parse_assert<T: Parse + ToTokens>(s: impl ToString + Clone) {
+    parse_assert_against::<T>(s.clone(), s)
   }
   
-  fn parse_assert_against<T: Parse + ToTokens>(s: &str, target: &str) {
-    let s_tokens = proc_macro2::TokenStream::from_str(s).unwrap();
+  fn parse_assert_against<T: Parse + ToTokens>(s: impl ToString, target: impl ToString) {
+    let s_tokens = proc_macro2::TokenStream::from_str(s.to_string().as_str()).unwrap();
     let res: T = syn::parse2(s_tokens).unwrap();
     assert_eq_wo_whitespace(res.to_token_stream(), target)
   }
@@ -249,6 +408,36 @@ mod tests {
     parse_assert::<FnBuilder>("pub(crate) fn foo_bar(&mut self, x: &A) -> Self { Self(x.value) }");
     parse_assert::<FnBuilder>("pub fn foo_bar<'a>(x: &A) where A: Clone { x.clone(); }");
     parse_assert::<FnBuilder>("fn foo_bar(&self, x: &B) -> Self where B: ::core::borrow::Borrow<Self> { Self(&self.0 + &x.borrow().0) }");
+  }
+
+  #[test]
+  fn build_and_collect_bools() {
+    let data: DeriveInput = parse_quote!(
+      struct X {
+        pub vals: (i32, char),
+        num: &'static usize,
+        bytes: [u8; 9]
+      }
+    );
+    let (ident, data) = if let Data::Struct(s) = &data.data {
+      (&data.ident, s)
+    } else {panic!()};
+    let build_f = |_: &FnArgBuilder| {
+      let res: Box<dyn Fn(Expr) -> _> = Box::new(|e| {
+        quote!((#e).eval())
+      });
+      res
+    };
+    let fn_builder = FnBuilder::new(parse_quote!(foo_bar))
+      .set_visibility(parse_quote!(pub))
+      .set_output(Some(parse_quote!(bool)))
+      .set_input([parse_quote!(&self)])
+      .set_body_to_collect_builder::<Token![&&]>(ident, data, &build_f);
+    // panic!("{}", fn_builder.to_token_stream())
+    assert_eq_wo_whitespace(
+      fn_builder.to_token_stream(),
+      "pub fn foo_bar(&self) -> bool { (&self.vals.0).eval() && (&self.vals.1).eval() && (&self.num).eval() && (&self.bytes).eval() }"
+    );
   }
 }
 

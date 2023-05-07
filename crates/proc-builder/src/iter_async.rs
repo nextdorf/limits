@@ -10,28 +10,28 @@ pub struct IterAsync<'a, T> {
 #[macro_export]
 macro_rules! yield_async {
   ($out:ident <- $val:expr) => {{
-    *$out = Some($val);
+    $out.set(Some($val));
     futures::pending!()
   }};
   ($out:ident) => {
-    *$out = None
+    $out.set(None)
   }
 }
 
 
 impl<'a, 't: 'a, T: 't> IterAsync<'a, T> {
-  pub fn new<F: Future<Output = ()> + 'a>(f: impl Fn(&'a mut Option<T>) -> F, waker: Waker) -> Self {
+  pub fn new<F: Future<Output = ()> + 'a>(f: impl Fn(Pin<&'a mut Option<T>>) -> F, waker: Waker) -> Self {
     let (future, next_val) = unsafe {
       // f(&mut *(next_val.borrow_mut())).boxed_local()
       let next_val = Box::into_raw(Box::new(None));
-      let f = f(&mut *next_val).boxed_local();
+      let f = f(Pin::new_unchecked(&mut *next_val)).boxed_local();
       let next_val = Box::into_pin(Box::from_raw(next_val));
       (f, next_val)
     };
     Self { waker, next_val, future }
   }
 
-  pub fn new_without_waker<F: Future<Output = ()> + 'a>(f: impl Fn(&'a mut Option<T>) -> F) -> Self {
+  pub fn new_without_waker<F: Future<Output = ()> + 'a>(f: impl Fn(Pin<&'a mut Option<T>>) -> F) -> Self {
     Self::new(f, noop_waker())
   }
 }
@@ -85,7 +85,7 @@ impl<'a, T: Unpin> Iterator for IterAsync<'a, T> {
 fn test_iter_async() {
   use std::fmt::Debug;
 
-  async fn inner_f<T: Clone>(xs: &Vec<T>, out: &mut Option<T>) {
+  async fn inner_f<T: Clone>(xs: &Vec<T>, mut out: Pin<&mut Option<T>>) {
     let mut i = 0;
     let mut j = 0;
     while let Some(x) = xs.get(i) {
@@ -93,6 +93,7 @@ fn test_iter_async() {
       j+=1;
       i+=j+1;
     }
+    yield_async!(out)
   }
 
   fn assert_iter_a<T: Clone + PartialEq + Debug + Unpin>(xs: Vec<T>) {
