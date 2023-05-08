@@ -9,4 +9,6 @@ edition = "2021"
 num-traits = "*"
 # num-complex = "*"
 tensor-derive = { path = "tensor-derive"}
+tensor-derive-new = { path = "tensor-derive-new"}
 tensor-traits = { path = "tensor-traits"}
+tensor-derive-new-test = { path = "tensor-derive-new-test"}
