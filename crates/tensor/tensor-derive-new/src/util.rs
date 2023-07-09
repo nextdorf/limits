@@ -1,5 +1,7 @@
 use proc_macro::TokenStream;
 
+pub mod struct_vis;
+
 
 pub(crate) fn unwrap_ts(src_ident: &str, res: syn::Result<TokenStream>) -> TokenStream {
   match res {
@@ -19,4 +21,6 @@ macro_rules! return_err {
   };
 }
 pub(crate) use return_err;
+
+
 

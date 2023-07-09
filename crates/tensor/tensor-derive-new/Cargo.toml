@@ -9,8 +9,9 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = { version = "*", features = ["full"]}
+syn = { version = "*", features = ["full", "visit"]}
 quote = "*"
+proc-macro2 = "*"
 num-traits = "*"
 tensor-traits = { path = "../tensor-traits"}
 # proc-builder = { path = "../../proc-builder"}
