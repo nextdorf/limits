@@ -7,6 +7,60 @@ use crate::util::return_err;
 
 pub fn wrapper_deref_impl(input: &DeriveInput) -> syn::Result<TokenStream> {
   const WRAP_DEREF_STR: &str = "wrapper_deref";
+
+  fn get_target_idx(input_ident: &Ident, fields: &syn::Fields, opt_attr: Option<&syn::Attribute>) -> syn::Result<usize> {
+    let res = match opt_attr {
+      Some(attr) => match &attr.meta {
+        syn::Meta::Path(_) => 0,
+        syn::Meta::NameValue(syn::MetaNameValue {value, ..}) => { //TODO: key-value macros are not supported ATM :(
+          let ident = syn::parse2::<Ident>(value.to_token_stream())?;
+          let found_field = fields.iter().enumerate().find(|(_, f)| *f.ident.as_ref().unwrap() == ident);
+          match found_field {
+            Some((idx, _)) => idx,
+            None => return_err!(ident.span(), "{}::{} not found", input_ident, &ident),
+          }
+        },
+        syn::Meta::List(syn::MetaList {tokens, ..}) => { //TODO: Remove this once key-value macros are supported
+          let l = Punctuated::<proc_macro2::TokenStream, Token![,]>::parse_terminated.parse2(tokens.clone())?;
+          let mut l = l.into_iter();
+          if let Some(ident) = l.next() {
+            if let Some(ident) = l.next() {
+              return_err!(ident.span(), "Too many elements to wrap")
+            }
+            let found_field = match fields {
+              syn::Fields::Named(_) => {
+                let ident = parse2::<Ident>(ident.clone())?;
+                let found_field = fields.iter().enumerate().find(|(_, f)| *f.ident.as_ref().unwrap() == ident);
+                if found_field.is_none() {
+                  return_err!(ident.span(), "{}::{} not found", input_ident, &ident);
+                }
+                found_field
+              },
+              syn::Fields::Unnamed(_) => {
+                let idx = parse2::<syn::Index>(ident.clone())?.index as usize;
+                fields.iter().enumerate().nth(idx)
+              },
+              syn::Fields::Unit => unreachable!(),
+            };
+            match found_field {
+              Some((idx, _)) => idx,
+              None => return_err!(ident.span(), "{}::{} not found", input_ident, &ident),
+            }
+          } else {
+            0
+          }
+        },
+        // syn::Meta::List(l) => { //TODO: Use this once key-value macros are supported
+        //   return_err!(l.span(), "Can not be a list. Use {WRAP_DEREF_STR} = .. instead")
+        // },
+      },
+      None if fields.len() == 1 => 0,
+      // None => return_err!(s_fields.span(), "Only one element can be wrapped. Consider adding #[{WRAP_DEREF_STR} {{ = .. }}?] and specifying the wrapped element")
+      None => return_err!(fields.span(), "Only one element can be wrapped. Consider adding #[{WRAP_DEREF_STR} ( .. )?] and specifying the wrapped element")
+    };
+    Ok(res)
+  }
+
   let s_fields = match &input.data {
     syn::Data::Struct(syn::DataStruct {fields, ..}) => match fields {
       syn::Fields::Named(syn::FieldsNamed {named, ..}) if named.len() > 0 => fields,
@@ -16,55 +70,8 @@ pub fn wrapper_deref_impl(input: &DeriveInput) -> syn::Result<TokenStream> {
     _ => return_err!(input.span(), "Only structs can be wrapped"),
   };
   let wrap_deref_attr = input.attrs.iter().find(|a| a.path().is_ident(WRAP_DEREF_STR));
-  let target_idx = match &wrap_deref_attr {
-    Some(attr) => match &attr.meta {
-      syn::Meta::Path(_) => 0,
-      syn::Meta::NameValue(syn::MetaNameValue {value, ..}) => { //TODO: key-value macros are not supported ATM :(
-        let ident = syn::parse2::<Ident>(value.to_token_stream())?;
-        let found_field = s_fields.iter().enumerate().find(|(_, f)| *f.ident.as_ref().unwrap() == ident);
-        match found_field {
-          Some((idx, _)) => idx,
-          None => return_err!(ident.span(), "{}::{} not found", &input.ident, &ident),
-        }
-      },
-      syn::Meta::List(syn::MetaList {tokens, ..}) => { //TODO: Remove this once key-value macros are supported
-        let l = Punctuated::<proc_macro2::TokenStream, Token![,]>::parse_terminated.parse2(tokens.clone())?;
-        let mut l = l.into_iter();
-        if let Some(ident) = l.next() {
-          if let Some(ident) = l.next() {
-            return_err!(ident.span(), "Too many elements to wrap")
-          }
-          let found_field = match s_fields {
-            syn::Fields::Named(_) => {
-              let ident = parse2::<Ident>(ident.clone())?;
-              let found_field = s_fields.iter().enumerate().find(|(_, f)| *f.ident.as_ref().unwrap() == ident);
-              if found_field.is_none() {
-                return_err!(ident.span(), "{}::{} not found", &input.ident, &ident);
-              }
-              found_field
-            },
-            syn::Fields::Unnamed(_) => {
-              let idx = parse2::<syn::Index>(ident.clone())?.index as usize;
-              s_fields.iter().enumerate().nth(idx)
-            },
-            syn::Fields::Unit => unreachable!(),
-          };
-          match found_field {
-            Some((idx, _)) => idx,
-            None => return_err!(ident.span(), "{}::{} not found", &input.ident, &ident),
-          }
-        } else {
-          0
-        }
-      },
-      // syn::Meta::List(l) => { //TODO: Use this once key-value macros are supported
-      //   return_err!(l.span(), "Can not be a list. Use {WRAP_DEREF_STR} = .. instead")
-      // },
-    },
-    None if s_fields.len() == 1 => 0,
-    // None => return_err!(s_fields.span(), "Only one element can be wrapped. Consider adding #[{WRAP_DEREF_STR} {{ = .. }}?] and specifying the wrapped element")
-    None => return_err!(s_fields.span(), "Only one element can be wrapped. Consider adding #[{WRAP_DEREF_STR} ( .. )?] and specifying the wrapped element")
-  };
+  let target_idx = get_target_idx(&input.ident, s_fields, wrap_deref_attr)?;
+
   let target = match s_fields.iter().nth(target_idx) {
     Some(t) => t,
     None => return_err!(input.span(), "{}th element of {} not found", target_idx, &input.ident),

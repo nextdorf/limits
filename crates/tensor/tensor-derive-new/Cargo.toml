@@ -14,4 +14,5 @@ quote = "*"
 proc-macro2 = "*"
 num-traits = "*"
 tensor-traits = { path = "../tensor-traits"}
+petgraph = "*"
 # proc-builder = { path = "../../proc-builder"}

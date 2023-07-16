@@ -16,5 +16,9 @@ pub struct A<T> {
 pub struct B(pub (), pub u32);
 
 
+#[derive(Group)]
+pub struct G(pub i32);
+
+
 
 

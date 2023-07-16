@@ -1,5 +1,6 @@
-use std::mem::{take, swap, replace};
+use std::{mem::{take, swap, replace}, collections::HashMap};
 
+use petgraph::{data::Build, Graph, graph::NodeIndex, visit::IntoNodeReferences};
 use quote::{ToTokens, quote};
 use syn::{visit::{self, Visit}, punctuated::Punctuated, Ident, Token, Type, Expr, parse_quote, ExprCall, parse2};
 
@@ -108,20 +109,20 @@ impl<'ast> Visit<'ast> for StructLookup<'ast, 'ast> {
 
 
 impl<'curr> StructLookup<'_, 'curr> {
-  pub const fn new_with(kind: LookupKind) -> Self {
+  pub const fn new_empty(kind: Option<LookupKind>) -> Self {
     Self {
-      kind: Some(kind),
+      kind,
       paths: Vec::new(),
       current_path: Vec::new(),
     }
   }
 
+  pub const fn new_with(kind: LookupKind) -> Self {
+    Self::new_empty(Some(kind))
+  }
+
   pub const fn new() -> Self {
-    Self {
-      kind: None,
-      paths: Vec::new(),
-      current_path: Vec::new(),
-    }
+    Self::new_empty(None)
   }
 
 
@@ -162,7 +163,8 @@ impl<'curr> StructLookup<'_, 'curr> {
 
 impl<'a, 'curr> StructLookup<'a, 'curr> {
   pub fn set_current_path(&mut self, current_path: &mut Vec<MemberOf<'curr>>) {
-    swap(&mut self.current_path, current_path);
+    // swap(&mut self.current_path, current_path);
+    self.current_path = take(current_path)
   }
   pub fn push_member<'b: 'a + 'curr>(&mut self, member: MemberOf<'b>) {
     self.current_path.push(member)
@@ -193,6 +195,165 @@ impl<'a, 'curr> StructLookup<'a, 'curr> {
   }
 }
 
+
+/// Build a "tuple tower"
+/// fn(vec[a.u.x, a.u.y, a.v, b.w.z]) -> [(a, ((a.u.x, a.u.y), a.v)), (b, (b.w.z, ))]
+pub fn collect_exprs_at_lookup_old<'a>(exprs_at_lookup: Vec<(Lookup<'a>, Expr)>) -> Vec<(MemberOf<'a>, Expr)> {
+  fn pop_front_member<'a>(lookup: &mut Lookup<'a>) -> Option<MemberOf<'a>> {
+    let mut xs = take(&mut lookup.path).into_iter();
+    let member = xs.next();
+    lookup.path = Punctuated::from_iter(xs);
+    member
+  }
+
+  let mut curr_member = match exprs_at_lookup.first() {
+    Some((lookup, _)) => *lookup.path.first().expect("msg"),
+    None => return vec![],
+  };
+  let mut res = Vec::new();
+  let mut curr_exprs = Vec::<(Lookup, Expr)>::new();
+  fn put_from_curr_into_res(curr_member: MemberOf, curr_exprs: &mut Vec<(Lookup, Expr)>) {
+    {
+      for (lookup, _) in &*curr_exprs {
+        let m0 = *lookup.path.first().unwrap();
+        debug_assert!(curr_member == m0)
+      }
+    }
+  };
+  for (lookup, expr) in exprs_at_lookup {
+    let member = *lookup.path.first().expect("msg");
+    if curr_member != member {
+      put_from_curr_into_res(curr_member, &mut curr_exprs)
+    }
+    curr_exprs.push((lookup, expr))
+  }
+  if !curr_exprs.is_empty() {
+    put_from_curr_into_res(curr_member, &mut curr_exprs)
+  }
+
+  res
+}
+
+#[derive(Clone)]
+enum GraphNode<'a> {
+  Member(usize, MemberOf<'a>),
+  Expr(Expr),
+  Start
+}
+impl<'a> GraphNode<'a> {
+  pub const fn from_member((idx, member): (usize, MemberOf<'a>)) -> Self {
+    Self::Member(idx, member)
+  }
+}
+impl GraphNode<'_> {
+  pub const fn from_expr(expr: Expr) -> Self {
+    Self::Expr(expr)
+  }
+}
+
+/// Build a "tuple tower"
+/// fn(vec[a.u.x, a.u.y, a.v, b.w.z]) -> [(a, ((a.u.x, a.u.y), a.v)), (b, (b.w.z, ))]
+fn collect_exprs_at_lookup_as_graph<'a>(exprs_at_lookup: Vec<(Lookup<'a>, Expr)>) -> (Graph<GraphNode<'a>, ()>, NodeIndex) {
+  let mut graph = Graph::new();
+  let mut graph_nodes = Vec::new();
+  let idx0 = graph.add_node(GraphNode::Start);
+  for (lookup, expr) in exprs_at_lookup {
+    let mut old_idx = idx0;
+    for x in lookup.path.into_iter().enumerate() {
+      let new_idx = match graph_nodes.iter().find(|(y, _)| x==*y) {
+        Some((_, idx)) => *idx,
+        None => {
+          let idx = graph.add_node(GraphNode::from_member(x));
+          graph_nodes.push((x, idx));
+          idx
+        }
+      };
+      graph.add_edge(
+        replace(&mut old_idx, new_idx),
+        new_idx,
+        ()
+      );
+    }
+    let new_idx = graph.add_node(GraphNode::from_expr(expr));
+    graph.add_edge(old_idx, new_idx, ());
+  }
+
+  (graph, idx0)
+}
+
+// fn unwrap_exprs_at_lookup_graph<'a>(graph: &mut Graph<GraphNode<'a>, ()>, idx: NodeIndex) -> Vec<(Option<MemberOf<'a>>, Expr)> {
+//   let mut edges = graph.neighbors(idx).detach();
+//   let n0 = match edges.next_node(graph) {
+//     Some(n0) => n0,
+//     None => return Vec::new(),
+//   };
+//   match edges.next_node(graph) {
+//     None => {
+//       // let edge = *(edges[0]);
+//       // let node = graph.node_references().collect::<Vec<_>>()[0].
+//       match *&graph[n0] {
+//         GraphNode::Member(_, m) => match m {
+//           MemberOf::Tuple(_, _) => todo!(),
+//           MemberOf::UnnamedFields(_, _) => todo!(),
+//           MemberOf::NamedFields(_, _) => todo!(),
+//         },
+//         GraphNode::Expr(expr) => panic!("No MemberOf"),
+//         GraphNode::Start => unreachable!(),
+//       }
+//       todo!()
+//     },
+//     Some(n1) => {
+//       let idxs = Some(()).into_iter().cycle().map_while(|()| edges.next_node(graph));
+//       let idxs = [n0, n1].into_iter().chain(idxs);
+//       todo!()
+//     }
+//   }
+// }
+fn rewrap_exprs_at_lookup_from_graph<'a>(graph: &Graph<GraphNode<'a>, ()>, idx: NodeIndex) -> Vec<(Option<MemberOf<'a>>, Expr)> {
+  let mut edges = graph.neighbors(idx).detach();
+  Some(()).into_iter()
+    .cycle()
+    .map_while(|()| match edges.next_node(graph) {
+      Some(idx) => Some(match &graph[idx] {
+        GraphNode::Member(_, member) => {
+          let exprs = rewrap_exprs_at_lookup_from_graph(graph, idx);
+          let set_member = exprs.first().unwrap().0.is_some();
+          #[cfg(debug_assertions)]
+          {
+            for (m, _) in exprs.iter().skip(1) {
+              debug_assert_eq!(m.is_some(), set_member)
+            }
+          }
+          let expr = match (set_member, exprs.len()) {
+            (false, 1) => exprs.first().unwrap().1.clone(),
+            (true, 1) => {
+              let expr = &exprs.first().unwrap().1;
+              parse_quote!((#expr,))
+            },
+            (true, _) => {
+              let exprs = exprs.into_iter().map(|(_, e)| e);
+              let exprs = Punctuated::<_, Token!(,)>::from_iter(exprs);
+              parse_quote!((#exprs))
+            },
+            (false, _) => unreachable!(),
+          };
+          (Some(*member), expr)
+        },
+        GraphNode::Expr(expr) => (None, expr.clone()),
+        GraphNode::Start => unreachable!(),
+      }),
+      None => None,
+    }).collect()
+}
+
+
+pub fn collect_exprs_at_lookup<'a>(exprs_at_lookup: Vec<(Lookup<'a>, Expr)>) -> Vec<(MemberOf<'a>, Expr)> {
+  let (graph, idx) = collect_exprs_at_lookup_as_graph(exprs_at_lookup);
+  let res = rewrap_exprs_at_lookup_from_graph(&graph, idx);
+  res.into_iter()
+    .map(|(m, e)| (m.unwrap(), e))
+    .collect()
+}
 
 
 impl StructLookupPaths<'_> {
@@ -226,48 +387,119 @@ impl StructLookupPaths<'_> {
       lookup.path = Punctuated::from_iter(xs);
       member
     }
-    fn inner(member: MemberOf, mut exprs: Vec<(Lookup, Expr)>) -> Expr {
+    /// Build a "tuple tower"
+    /// inner(a, vec[a.u.x, a.u.y, a.v.z]) -> ((a.u.x, a.u.y), (a.v.z, ))
+    fn inner<'a>(member: MemberOf<'a>, mut exprs: Vec<(Lookup, Expr)>) -> (MemberOf<'a>, Expr) {
       // let ident = match member {
       //   Member::Named(ident) => ident,
       //   Member::Unnamed(_) => todo!(),
       // };
       // par
-      if exprs.len() == 1 {
-        let lookup = &mut exprs.first_mut().unwrap().0;
-        if lookup.path.len() == 1 {
-          exprs.pop().unwrap().1
-        } else {
-          let member = pop_front_member(lookup).unwrap();
-          let expr = inner(member, exprs);
-          parse_quote!((#expr, ))
+
+      // all lookups belong to same member
+      {
+        let members = exprs.iter()
+          .map(|e| {
+            e.0.path.first()
+              .expect("Expect at a non-empty collection of exprs with identical first lookup, but there is no lookup")
+          });
+        for m in members {
+          assert!(*m == member,
+            "Expect at a non-empty collection of exprs with identical first lookup, found {} and {}",
+            m.to_token_stream(),
+            member.to_token_stream(),
+          )
         }
-      } else{
-        exprs.iter_mut().map(|e| pop_front_member(&mut e.0).unwrap());
-        todo!()
+      }
+
+      // match exprs.len() {
+      //   0 => unreachable!(),
+      //   1 => {
+      //     let lookup = &mut exprs.first_mut().unwrap().0;
+      //     if lookup.path.len() == 1 {
+      //       exprs.pop().unwrap().1
+      //     } else {
+      //       let member = pop_front_member(lookup).unwrap();
+      //       let expr = inner(member, exprs);
+      //       parse_quote!((#expr, ))
+      //     }
+      //   },
+      //   _ => {
+      //     exprs.iter_mut().map(|e| pop_front_member(&mut e.0).unwrap());
+      //     todo!()
+      //   }
+      // }
+      match exprs.len() {
+        0 => unreachable!(),
+        1 => {
+          let lookup = &mut exprs.first_mut().unwrap().0;
+          let res_expr = if lookup.path.len() == 1 {
+            exprs.pop().unwrap().1
+          } else {
+            let member = pop_front_member(lookup).unwrap();
+            let expr = inner(member, exprs).1;
+            parse_quote!((#expr, ))
+          };
+          (member, res_expr)
+        },
+        _ => todo!()
       }
     }
 
+    // match self.kind {
+    //   LookupKind::Named => {
+    //     // let (mut member_curr, mut exprs_curr) = match self.paths.first() {
+    //     //   Some(lookup) => (lookup.path.first().unwrap().clone(), Vec::new()),
+    //     //   None => return parse_quote!(#ident {}),
+    //     // };
+    //     let exprs_base = self.clone().with_many(exprs, access, f, g);
+    //     // let mut exprs = Punctuated::<_, Token!(,)>::new();
+    //     // for (lookup, expr) in self.paths.into_iter().zip(exprs_base) {
+    //     //   let member = lookup.path.first().unwrap();
+    //     //   if member_curr != *member {
+    //     //     exprs.push(inner(replace(&mut member_curr, member.clone()), take(&mut exprs_curr)))
+    //     //   }
+    //     //   exprs_curr.push((lookup, expr))
+    //     // }
+
+    //     // //push last exprs_curr to exprs
+    //     // if !exprs_curr.is_empty() {
+    //     //   exprs.push(inner(member_curr, exprs_curr))
+    //     // }
+
+    //     // parse_quote!(#ident {#exprs})
+
+    //     let exprs_at_lookup = self.paths.into_iter().zip(exprs_base);
+    //     let exprs = collect_exprs_at_lookup(exprs_at_lookup)
+    //       .map::<Expr, _>(|(m, e)| parse_quote!(#m: #e));
+    //     let exprs = Punctuated::<_, Token!(,)>::from_iter(exprs);
+    //     parse_quote!(#ident {#exprs})
+    //   },
+    //   LookupKind::Unnamed => {
+    //     // let exprs = self.with_many(exprs, access, f, g);
+    //     // let exprs = Punctuated::<_, Token!(,)>::from_iter(exprs);
+    //     // parse_quote!(#ident (#exprs));
+    //     todo!()
+    //   },
+    //   LookupKind::Unit => parse_quote!(#ident),
+    // }
+
     match self.kind {
-      LookupKind::Named => {
-        let (mut member_curr, mut exprs_curr) = match self.paths.first() {
-          Some(lookup) => (lookup.path.first().unwrap().clone(), Vec::new()),
-          None => return parse_quote!(#ident {}),
+      LookupKind::Named | LookupKind::Unnamed => {
+        let map_fn = match self.kind {
+          LookupKind::Named => |(m, e)| parse_quote!(#m: #e),
+          LookupKind::Unnamed => |(_, e)| e,
+          _ => unreachable!(),
         };
         let exprs_base = self.clone().with_many(exprs, access, f, g);
-        let mut exprs = Punctuated::<_, Token!(,)>::new();
-        for (lookup, expr) in self.paths.into_iter().zip(exprs_base) {
-          let member = lookup.path.first().unwrap();
-          if member_curr != *member {
-            exprs.push(inner(replace(&mut member_curr, member.clone()), take(&mut exprs_curr)))
-          }
-          exprs_curr.push((lookup, expr))
-        }
-        parse_quote!(#ident {#exprs})
-      },
-      LookupKind::Unnamed => {
-        let exprs = self.with_many(exprs, access, f, g);
+        let exprs_at_lookup = self.paths.into_iter().zip(exprs_base);
+        let exprs = collect_exprs_at_lookup(exprs_at_lookup.collect()).into_iter().map(map_fn);
         let exprs = Punctuated::<_, Token!(,)>::from_iter(exprs);
-        parse_quote!(#ident (#exprs))
+        match self.kind {
+          LookupKind::Named => parse_quote!(#ident {#exprs}),
+          LookupKind::Unnamed => parse_quote!(#ident (#exprs)),
+          _ => unreachable!(),
+        }
       },
       LookupKind::Unit => parse_quote!(#ident),
     }
@@ -361,19 +593,26 @@ impl ToTokens for MemberOf<'_> {
 
 #[test]
 fn q() {
+  // Create the data structure which represents the input and allows for partial representation.
+  // This means it's intended to be mutable and the content might be garbage until all visit_*
+  // functions are called.
   let mut lookup = StructLookup::new();
+  // The input to represent
   let input: syn::DeriveInput = parse_quote!(
     pub struct A<T> {
       internal: PhantomData<T>,
       pub value: (u32, u8),
     }
   );
+  // Visit the input and try to build the final data-structure. Unlike StructLookup StructLookupPaths
+  // isn't a partial representation.
   lookup.visit_derive_input(&input);
   let lookup: StructLookupPaths = match lookup.try_into() {
     Ok(x) => x,
     Err(_) => panic!("..."),
   };
 
+  // Print the found representation with a panic
   let mut paths = Punctuated::<_, Token!(,)>::new();
   for p in &lookup.paths {
     let ps = p.path.to_token_stream();
