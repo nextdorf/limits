@@ -1,6 +1,6 @@
-use std::{mem::{take, swap, replace}, collections::HashMap, fmt::Debug};
+use std::{mem::{take, swap, replace}, fmt::Debug};
 
-use petgraph::{data::Build, Graph, graph::NodeIndex, visit::IntoNodeReferences};
+use petgraph::{Graph, graph::NodeIndex};
 use quote::{ToTokens, quote};
 use syn::{visit::{self, Visit}, punctuated::Punctuated, Ident, Token, Type, Expr, parse_quote, ExprCall, parse2};
 
@@ -47,6 +47,16 @@ pub enum LookupAccess {
   Borrow,
 }
 
+
+impl MemberOf<'_> {
+  pub const fn idx(&self) -> usize {
+    *match self {
+      MemberOf::Tuple(_, idx) => idx,
+      MemberOf::UnnamedFields(_, idx) => idx,
+      MemberOf::NamedFields(_, idx) => idx,
+    }
+  }
+}
 
 impl<'ast> Visit<'ast> for StructLookup<'ast, 'ast> {
   fn visit_fields(&mut self, fs: &'ast syn::Fields) {
@@ -196,43 +206,6 @@ impl<'a, 'curr> StructLookup<'a, 'curr> {
 }
 
 
-/// Build a "tuple tower"
-/// fn(vec[a.u.x, a.u.y, a.v, b.w.z]) -> [(a, ((a.u.x, a.u.y), a.v)), (b, (b.w.z, ))]
-pub fn collect_exprs_at_lookup_old<'a>(exprs_at_lookup: Vec<(Lookup<'a>, Expr)>) -> Vec<(MemberOf<'a>, Expr)> {
-  fn pop_front_member<'a>(lookup: &mut Lookup<'a>) -> Option<MemberOf<'a>> {
-    let mut xs = take(&mut lookup.path).into_iter();
-    let member = xs.next();
-    lookup.path = Punctuated::from_iter(xs);
-    member
-  }
-
-  let mut curr_member = match exprs_at_lookup.first() {
-    Some((lookup, _)) => *lookup.path.first().expect("msg"),
-    None => return vec![],
-  };
-  let mut res = Vec::new();
-  let mut curr_exprs = Vec::<(Lookup, Expr)>::new();
-  fn put_from_curr_into_res(curr_member: MemberOf, curr_exprs: &mut Vec<(Lookup, Expr)>) {
-    {
-      for (lookup, _) in &*curr_exprs {
-        let m0 = *lookup.path.first().unwrap();
-        debug_assert!(curr_member == m0)
-      }
-    }
-  };
-  for (lookup, expr) in exprs_at_lookup {
-    let member = *lookup.path.first().expect("msg");
-    if curr_member != member {
-      put_from_curr_into_res(curr_member, &mut curr_exprs)
-    }
-    curr_exprs.push((lookup, expr))
-  }
-  if !curr_exprs.is_empty() {
-    put_from_curr_into_res(curr_member, &mut curr_exprs)
-  }
-
-  res
-}
 
 #[derive(Clone)]
 enum GraphNode<'a> {
@@ -292,39 +265,9 @@ fn collect_exprs_at_lookup_as_graph<'a>(exprs_at_lookup: Vec<(Lookup<'a>, Expr)>
     let new_idx = graph.add_node(GraphNode::from_expr(expr));
     graph.update_edge(old_idx, new_idx, ());
   }
-
-  // panic!("{:?}", graph);
   (graph, idx0)
 }
 
-// fn unwrap_exprs_at_lookup_graph<'a>(graph: &mut Graph<GraphNode<'a>, ()>, idx: NodeIndex) -> Vec<(Option<MemberOf<'a>>, Expr)> {
-//   let mut edges = graph.neighbors(idx).detach();
-//   let n0 = match edges.next_node(graph) {
-//     Some(n0) => n0,
-//     None => return Vec::new(),
-//   };
-//   match edges.next_node(graph) {
-//     None => {
-//       // let edge = *(edges[0]);
-//       // let node = graph.node_references().collect::<Vec<_>>()[0].
-//       match *&graph[n0] {
-//         GraphNode::Member(_, m) => match m {
-//           MemberOf::Tuple(_, _) => todo!(),
-//           MemberOf::UnnamedFields(_, _) => todo!(),
-//           MemberOf::NamedFields(_, _) => todo!(),
-//         },
-//         GraphNode::Expr(expr) => panic!("No MemberOf"),
-//         GraphNode::Start => unreachable!(),
-//       }
-//       todo!()
-//     },
-//     Some(n1) => {
-//       let idxs = Some(()).into_iter().cycle().map_while(|()| edges.next_node(graph));
-//       let idxs = [n0, n1].into_iter().chain(idxs);
-//       todo!()
-//     }
-//   }
-// }
 fn rewrap_exprs_at_lookup_from_graph<'a>(graph: &Graph<GraphNode<'a>, ()>, idx: NodeIndex) -> Vec<(Option<MemberOf<'a>>, Expr)> {
   let mut edges = graph.neighbors(idx).detach();
   let mut res = Some(()).into_iter()
@@ -361,11 +304,7 @@ fn rewrap_exprs_at_lookup_from_graph<'a>(graph: &Graph<GraphNode<'a>, ()>, idx: 
       None => None,
     }).collect::<Vec<_>>();
   if let Some((Some(_), _)) = res.first() {
-    res.sort_by_key(|(m, _)| match m.unwrap() {
-      MemberOf::Tuple(_, idx) => idx,
-      MemberOf::UnnamedFields(_, idx) => idx,
-      MemberOf::NamedFields(_, idx) => idx,
-    })
+    res.sort_by_key(|(m, _)| m.unwrap().idx())
   }
   res
 }
@@ -406,14 +345,7 @@ impl StructLookupPaths<'_> {
     res
   }
 
-  fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, access: LookupAccess, f: Option<impl Fn(Type) -> ExprCall>, g: impl Fn(Vec<Expr>) -> Expr) -> Expr {
-    fn pop_front_member<'a>(lookup: &mut Lookup<'a>) -> Option<MemberOf<'a>> {
-      let mut xs = take(&mut lookup.path).into_iter();
-      let member = xs.next();
-      lookup.path = Punctuated::from_iter(xs);
-      member
-    }
-
+  pub fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, access: LookupAccess, f: Option<impl Fn(Type) -> ExprCall>, g: impl Fn(Vec<Expr>) -> Expr) -> Expr {
     match self.kind {
       LookupKind::Named | LookupKind::Unnamed => {
         let map_fn = match self.kind {
@@ -424,12 +356,10 @@ impl StructLookupPaths<'_> {
         let exprs_base = self.clone().with_many(exprs, access, f, g);
         let exprs_at_lookup = self.paths.into_iter().zip(exprs_base);
         let exprs = collect_exprs_at_lookup(exprs_at_lookup.collect());
-        // panic!("{:?}", exprs.into_iter().map(|(m, e)| (m.to_token_stream().to_string(), e.to_token_stream().to_string())).collect::<Vec<_>>());
         let exprs = exprs.into_iter().map(map_fn);
-        let exprs = Punctuated::<_, Token!(,)>::from_iter(exprs);
         match self.kind {
-          LookupKind::Named => parse_quote!(#ident {#exprs}),
-          LookupKind::Unnamed => parse_quote!(#ident (#exprs)),
+          LookupKind::Named => parse_quote!(#ident {#(#exprs),*}),
+          LookupKind::Unnamed => parse_quote!(#ident (#(#exprs),*)),
           _ => unreachable!(),
         }
       },
@@ -523,73 +453,98 @@ impl ToTokens for MemberOf<'_> {
 }
 
 
-#[test]
-fn q() {
-  // Create the data structure which represents the input and allows for partial representation.
-  // This means it's intended to be mutable and the content might be garbage until all visit_*
-  // functions are called.
-  let mut lookup = StructLookup::new();
-  // The input to represent
-  let input: syn::DeriveInput = parse_quote!(
-    pub struct A<T> {
-      internal: PhantomData<T>,
-      pub value: (u32, u8),
-    }
-  );
-  // Visit the input and try to build the final data-structure. Unlike StructLookup StructLookupPaths
-  // isn't a partial representation.
-  lookup.visit_derive_input(&input);
-  let lookup: StructLookupPaths = match lookup.try_into() {
-    Ok(x) => x,
-    Err(_) => panic!("..."),
-  };
+#[cfg(test)]
+mod tests {
+  use quote::{quote, ToTokens};
+  use syn::{parse_quote, visit::Visit, Expr, parse_str};
+  use crate::util::{*, tests::assert_eq_wo_whitespace};
 
-  // Print the found representation with a panic
-  let mut paths = Punctuated::<_, Token!(,)>::new();
-  for p in &lookup.paths {
-    let ps = p.path.to_token_stream();
-    let ty = &p.ty;
-    paths.push(quote!(#ps: #ty));
+  fn test_fn(input: &syn::DeriveInput, exprs: impl IntoIterator<Item = &'static str>, access: LookupAccess, collect_fn: impl Fn(Vec<Expr>) -> Expr) -> Expr {
+    // Create the data structure which represents the input and allows for partial representation.
+    // This means it's intended to be mutable and the content might be garbage until all visit_*
+    // functions are called.
+    let mut lookup = StructLookup::new();
+
+    // Visit the input and try to build the final data-structure. Unlike StructLookup StructLookupPaths
+    // isn't a partial representation.
+    lookup.visit_derive_input(&input);
+    let lookup: StructLookupPaths = match lookup.try_into() {
+      Ok(x) => x,
+      Err(_) => panic!("..."),
+    };
+
+    let exprs = exprs.into_iter().map(|s| parse_str(s).unwrap()).collect();
+    let none_fn = if false {Some(|_| parse_quote!(add_with()))} else {None};
+    lookup.with_many_and_collect(&input.ident, &exprs, access, none_fn, collect_fn)
   }
-  let paths = paths.into_token_stream().to_string();
-  let s = match lookup.kind {
-    LookupKind::Named => format!("_ {{{paths}}}"),
-    LookupKind::Unnamed => format!("_ ({paths})"),
-    LookupKind::Unit => "_".to_string(),
-  };
-  panic!("{s}")
-}
+ 
 
-#[test]
-fn test_add_fn() {
-  // Create the data structure which represents the input and allows for partial representation.
-  // This means it's intended to be mutable and the content might be garbage until all visit_*
-  // functions are called.
-  let mut lookup = StructLookup::new();
-  // The input to represent
-  let input: syn::DeriveInput = parse_quote!(
-    pub struct X {
-      f_value: f64,
-      pub value: (i32, i8),
-      s_value: ((i8,), )
-    }
-  );
-  // Visit the input and try to build the final data-structure. Unlike StructLookup StructLookupPaths
-  // isn't a partial representation.
-  lookup.visit_derive_input(&input);
-  let lookup: StructLookupPaths = match lookup.try_into() {
-    Ok(x) => x,
-    Err(_) => panic!("..."),
-  };
+  #[test]
+  fn test_add_fn_named() {
+    let input: syn::DeriveInput = parse_quote!(
+      pub struct X {
+        f_value: f64,
+        pub value: (i32, i8),
+        s_value: ((i8,), )
+      }
+    );
+    let exprs = ["u", "v"];
+    let collect_fn = |es: Vec<_>| parse_quote!(#(#es)+*);
+    let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
 
-  let ident = parse_quote!(x);
-  let (u, v) = (parse_quote!(u), parse_quote!(v));
-  let exprs = vec![u, v];
-  // let f = |_| parse_quote!(add_with());
-  let f = if false {Some(|_| parse_quote!(add_with()))} else {None};
-  let g = |es: Vec<_>| es.into_iter().next().unwrap();
-  let res = lookup.with_many_and_collect(&ident, &exprs, LookupAccess::Ref, f, g);
-  panic!("{}", res.to_token_stream().to_string())
+    let target = quote!(
+      X {
+        f_value: &u.f_value + &v.f_value,
+        value: (&u.value.0 + &v.value.0, &u.value.1 + &v.value.1),
+        s_value: ((&u.s_value.0.0 + &v.s_value.0.0, ), )
+      }
+    );
+    assert_eq_wo_whitespace(target, res.to_token_stream())
+  }
+  
+  #[test]
+  pub fn test_add_fn_unnamed() {
+    let input: syn::DeriveInput = parse_quote!(
+      pub struct X (
+        f64,
+        pub (i32, i8),
+        ((i8,), )
+      );
+    );
+    let exprs = ["u", "v"];
+    let collect_fn = |es: Vec<_>| parse_quote!(#(#es)+*);
+    let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
+
+    let target = quote!(
+      X (
+        &u.0 + &v.0,
+        (&u.1.0 + &v.1.0, &u.1.1 + &v.1.1),
+        ((&u.2.0.0 + &v.2.0.0, ), )
+      )
+    );
+    assert_eq_wo_whitespace(target, res.to_token_stream())
+  }
+  
+  #[test]
+  pub fn test_add_fn_typed() {
+    let input: syn::DeriveInput = parse_quote!(
+      pub struct X<T> {
+        internal: PhantomData<T>,
+        pub value: (u32, u8),
+      }
+    );
+    let exprs = ["u", "v"];
+    let collect_fn = |es: Vec<_>| parse_quote!(#(#es)+*);
+    let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
+
+    let target = quote!(
+      X {
+        internal: PhantomData,
+        value: (&u.value, &v.value)
+      }
+    );
+    assert_eq_wo_whitespace(target, res.to_token_stream())
+  }
 }
 
 
