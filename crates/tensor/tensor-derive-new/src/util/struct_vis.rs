@@ -4,6 +4,8 @@ use petgraph::{Graph, graph::NodeIndex};
 use quote::{ToTokens, quote};
 use syn::{visit::{self, Visit}, punctuated::Punctuated, Ident, Token, Type, Expr, parse_quote, ExprCall, parse2};
 
+use super::tests::{assert_eq_wo_whitespace, assert_eq_tokens};
+
 
 #[derive(Clone, Copy)]
 pub enum MemberOf<'a> {
@@ -332,20 +334,34 @@ impl StructLookupPaths<'_> {
       .collect()
   }
 
-  pub fn with_many(self, exprs: &Vec<Expr>, access: LookupAccess, f: Option<impl Fn(Type) -> ExprCall>, g: impl Fn(Vec<Expr>) -> Expr) -> Vec<Expr> {
+  // pub fn with_many(self, exprs: &Vec<Expr>, access: LookupAccess, f: Option<impl Fn(Type) -> ExprCall>, g: impl Fn(Vec<Expr>) -> Expr) -> Vec<Expr> {
+  //   let mut res = Vec::new();
+  //   for p in self.paths.into_iter() {
+  //     let exprs = exprs.iter()
+  //       .map(|e| match &f {
+  //         Some(f) => p.clone().with_access_and_call(e, access, f),
+  //         None => p.clone().with_access(e, access).0,
+  //       }).collect();
+  //     res.push(g(exprs))
+  //   }
+  //   res
+  // }
+  pub fn with_many(self, exprs: &Vec<Expr>, access: LookupAccess, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Vec<Expr> {
     let mut res = Vec::new();
     for p in self.paths.into_iter() {
-      let exprs = exprs.iter()
-        .map(|e| match &f {
-          Some(f) => p.clone().with_access_and_call(e, access, f),
-          None => p.clone().with_access(e, access).0,
-        }).collect();
-      res.push(g(exprs))
+      let (exprs, mut tys) = exprs.iter()
+        .map(|e| p.clone().with_access(e, access))
+        .unzip::<_, _, Vec<_>, Vec<_>>();
+      let ty = tys.pop().unwrap();
+      for tz in tys {
+        assert_eq_tokens(&ty, &tz)
+      }
+      res.push(f(exprs, ty))
     }
     res
   }
 
-  pub fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, access: LookupAccess, f: Option<impl Fn(Type) -> ExprCall>, g: impl Fn(Vec<Expr>) -> Expr) -> Expr {
+  pub fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, access: LookupAccess, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Expr {
     match self.kind {
       LookupKind::Named | LookupKind::Unnamed => {
         let map_fn = match self.kind {
@@ -353,7 +369,7 @@ impl StructLookupPaths<'_> {
           LookupKind::Unnamed => |(_, e): (_, Expr)| e.into_token_stream(),
           _ => unreachable!(),
         };
-        let exprs_base = self.clone().with_many(exprs, access, f, g);
+        let exprs_base = self.clone().with_many(exprs, access, f);
         let exprs_at_lookup = self.paths.into_iter().zip(exprs_base);
         let exprs = collect_exprs_at_lookup(exprs_at_lookup.collect());
         let exprs = exprs.into_iter().map(map_fn);
@@ -456,10 +472,10 @@ impl ToTokens for MemberOf<'_> {
 #[cfg(test)]
 mod tests {
   use quote::{quote, ToTokens};
-  use syn::{parse_quote, visit::Visit, Expr, parse_str};
-  use crate::util::{*, tests::assert_eq_wo_whitespace};
+  use syn::{parse_quote, visit::Visit, Expr, parse_str, Type, TypePath, Path};
+  use crate::util::{*, tests::{assert_eq_tokens, eq_tokens}};
 
-  fn test_fn(input: &syn::DeriveInput, exprs: impl IntoIterator<Item = &'static str>, access: LookupAccess, collect_fn: impl Fn(Vec<Expr>) -> Expr) -> Expr {
+  fn test_fn(input: &syn::DeriveInput, exprs: impl IntoIterator<Item = &'static str>, access: LookupAccess, collect_fn: impl Fn(Vec<Expr>, Type) -> Expr) -> Expr {
     // Create the data structure which represents the input and allows for partial representation.
     // This means it's intended to be mutable and the content might be garbage until all visit_*
     // functions are called.
@@ -474,8 +490,8 @@ mod tests {
     };
 
     let exprs = exprs.into_iter().map(|s| parse_str(s).unwrap()).collect();
-    let none_fn = if false {Some(|_| parse_quote!(add_with()))} else {None};
-    lookup.with_many_and_collect(&input.ident, &exprs, access, none_fn, collect_fn)
+    // let none_fn = if false {Some(|_| parse_quote!(add_with()))} else {None};
+    lookup.with_many_and_collect(&input.ident, &exprs, access, collect_fn)
   }
  
 
@@ -489,7 +505,7 @@ mod tests {
       }
     );
     let exprs = ["u", "v"];
-    let collect_fn = |es: Vec<_>| parse_quote!(#(#es)+*);
+    let collect_fn = |es: Vec<_>, _| parse_quote!(#(#es)+*);
     let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
 
     let target = quote!(
@@ -499,7 +515,7 @@ mod tests {
         s_value: ((&u.s_value.0.0 + &v.s_value.0.0, ), )
       }
     );
-    assert_eq_wo_whitespace(target, res.to_token_stream())
+    assert_eq_tokens(&target, &res)
   }
   
   #[test]
@@ -512,7 +528,7 @@ mod tests {
       );
     );
     let exprs = ["u", "v"];
-    let collect_fn = |es: Vec<_>| parse_quote!(#(#es)+*);
+    let collect_fn = |es: Vec<_>, _| parse_quote!(#(#es)+*);
     let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
 
     let target = quote!(
@@ -522,7 +538,7 @@ mod tests {
         ((&u.2.0.0 + &v.2.0.0, ), )
       )
     );
-    assert_eq_wo_whitespace(target, res.to_token_stream())
+    assert_eq_tokens(&target, &res)
   }
   
   #[test]
@@ -534,16 +550,34 @@ mod tests {
       }
     );
     let exprs = ["u", "v"];
-    let collect_fn = |es: Vec<_>| parse_quote!(#(#es)+*);
+    let phantom_data: (_, Expr) = (|p: &Path| -> bool {
+        if p.segments.len() == 1 {
+          let p = p.segments.first().unwrap();
+          p.ident == "PhantomData"
+        } else {
+          false
+        }
+      }, parse_quote!(PhantomData)
+    );
+    let collect_fn = |es: Vec<_>, ty| {
+      match ty {
+        // Type::Path(TypePath { qself:_, path }) if eq_tokens(&path, &phantom_data.0) =>
+        //   phantom_data.1.clone(),
+        // Type::Path(TypePath { qself:_, path }) => panic!("{}", path.to_token_stream()),
+        Type::Path(TypePath { qself:_, path }) if phantom_data.0(&path) => 
+          phantom_data.1.clone(),
+        _ => parse_quote!(#(#es)+*)
+      }
+    };
     let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
 
     let target = quote!(
       X {
         internal: PhantomData,
-        value: (&u.value, &v.value)
+        value: (&u.value.0 + &v.value.0, &u.value.1 + &v.value.1)
       }
     );
-    assert_eq_wo_whitespace(target, res.to_token_stream())
+    assert_eq_tokens(&target, &res)
   }
 }
 
