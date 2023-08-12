@@ -15,4 +15,5 @@ proc-macro2 = "*"
 num-traits = "*"
 tensor-traits = { path = "../tensor-traits"}
 petgraph = "*"
+paste = "*"
 # proc-builder = { path = "../../proc-builder"}

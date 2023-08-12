@@ -346,11 +346,14 @@ impl StructLookupPaths<'_> {
   //   }
   //   res
   // }
-  pub fn with_many(self, exprs: &Vec<Expr>, access: LookupAccess, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Vec<Expr> {
+  // pub fn with_many(self, exprs: &Vec<Expr>, access: LookupAccess, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Vec<Expr> {
+  pub fn with_many(self, exprs: &Vec<Expr>, accesses: impl IntoIterator<Item = LookupAccess>, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Vec<Expr> {
     let mut res = Vec::new();
+    let accesses = accesses.into_iter().collect::<Vec<_>>();
     for p in self.paths.into_iter() {
-      let (exprs, mut tys) = exprs.iter()
-        .map(|e| p.clone().with_access(e, access))
+      let accesses = accesses.iter().copied().chain(::core::iter::once(LookupAccess::Own).cycle());
+      let (exprs, mut tys) = exprs.iter().zip(accesses)
+        .map(|(e, acc)| p.clone().with_access(e, acc))
         .unzip::<_, _, Vec<_>, Vec<_>>();
       let ty = tys.pop().unwrap();
       for tz in tys {
@@ -361,7 +364,8 @@ impl StructLookupPaths<'_> {
     res
   }
 
-  pub fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, access: LookupAccess, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Expr {
+  // pub fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, access: LookupAccess, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Expr {
+  pub fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, accesses: impl IntoIterator<Item = LookupAccess>, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Expr {
     match self.kind {
       LookupKind::Named | LookupKind::Unnamed => {
         let map_fn = match self.kind {
@@ -369,7 +373,7 @@ impl StructLookupPaths<'_> {
           LookupKind::Unnamed => |(_, e): (_, Expr)| e.into_token_stream(),
           _ => unreachable!(),
         };
-        let exprs_base = self.clone().with_many(exprs, access, f);
+        let exprs_base = self.clone().with_many(exprs, accesses, f);
         let exprs_at_lookup = self.paths.into_iter().zip(exprs_base);
         let exprs = collect_exprs_at_lookup(exprs_at_lookup.collect());
         let exprs = exprs.into_iter().map(map_fn);
@@ -491,7 +495,7 @@ mod tests {
 
     let exprs = exprs.into_iter().map(|s| parse_str(s).unwrap()).collect();
     // let none_fn = if false {Some(|_| parse_quote!(add_with()))} else {None};
-    lookup.with_many_and_collect(&input.ident, &exprs, access, collect_fn)
+    lookup.with_many_and_collect(&input.ident, &exprs, [access], collect_fn)
   }
  
 

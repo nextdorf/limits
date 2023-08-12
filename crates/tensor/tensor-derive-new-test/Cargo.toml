@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tensor-derive-new ={ path = "../tensor-derive-new"}
+tensor-traits = { path = "../tensor-traits"}
+tensor-derive-new = { path = "../tensor-derive-new"}
 
 
