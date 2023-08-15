@@ -8,8 +8,7 @@ pub use group::{GenAbelGroup, GenGroup};
 // pub use num_field::NumField;
 // pub use vector_space::GenVectorSpace;
 
-pub use ::num_traits::Zero;
-pub use ::num_traits::One;
+pub use ::num_traits::{Zero, One, Inv};
 
 
 

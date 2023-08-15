@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use syn::{DeriveInput, parse2, punctuated::Punctuated, Token, parse::Parser, spanned::Spanned, visit::Visit, parse_quote, Type, parse_str};
 
-use crate::util::{return_err, struct_vis::{StructLookup, StructLookupPaths, LookupKind, LookupAccess}, get_unit_types, tests::eq_tokens, get_zero_path, get_one_path, get_derive_generic};
+use crate::util::{return_err, struct_vis::{StructLookup, StructLookupPaths, LookupKind, LookupAccess}, get_unit_types, tests::eq_tokens, get_zero_path, get_one_path, get_derive_generic, get_inv_path};
 
 type TokenStream1 = proc_macro::TokenStream;
 
@@ -81,6 +81,7 @@ pub fn group_impl(input: &DeriveInput) -> syn::Result<TokenStream1> {
   ) = _syn_borrow_values.get();
 
   let one_path = get_one_path(&input.attrs);
+  let inv_path = get_inv_path(&input.attrs);
 
 
   impl_store.push_impl({
@@ -117,6 +118,145 @@ pub fn group_impl(input: &DeriveInput) -> syn::Result<TokenStream1> {
 
         #[inline]
         fn mul(self, #param1: &#b_ty) -> #self_ty #ty_gen {
+          #body
+        }
+      }
+    )
+  })?;
+  impl_store.push_impl({
+    let body = aux_body_impl.ref_mult_ref_body();
+    quote!(
+      impl #b_impl_gen ::core::ops::Mul<&#b_ty> for &#self_ty #ty_gen #b_where_clause {
+        type Output = #self_ty #ty_gen;
+
+        #[inline]
+        fn mul(self, #param1: &#b_ty) -> #self_ty #ty_gen {
+          #body
+        }
+      }
+    )
+  })?;
+
+  impl_store.push_impl({
+    let body = aux_body_impl.mult_assign_body();
+    quote!(
+      impl #impl_gen ::core::ops::MulAssign<#self_ty #ty_gen> for #self_ty #ty_gen #where_clause {
+        #[inline]
+        fn mul_assign(&mut self, #param1: #self_ty #ty_gen) {
+          #(#body);*
+        }
+      }
+    )
+  })?;
+  impl_store.push_impl({
+    let body = aux_body_impl.mult_assign_ref_body();
+    quote!(
+      impl #b_impl_gen ::core::ops::MulAssign<&#b_ty> for #self_ty #ty_gen #b_where_clause {
+        #[inline]
+        fn mul_assign(&mut self, #param1: &#b_ty) {
+          #(#body);*
+        }
+      }
+    )
+  })?;
+
+  impl_store.push_impl({
+    let body = aux_body_impl.mult_inv_body();
+    quote!(
+      impl #impl_gen ::core::ops::Div<#self_ty #ty_gen> for #self_ty #ty_gen #where_clause {
+        type Output = #self_ty #ty_gen;
+
+        #[inline]
+        fn div(self, #param1: #self_ty #ty_gen) -> #self_ty #ty_gen {
+          #body
+        }
+      }
+    )
+  })?;
+  impl_store.push_impl({
+    let body = aux_body_impl.ref_mult_inv_body();
+    quote!(
+      impl #impl_gen ::core::ops::Div<#self_ty #ty_gen> for &#self_ty #ty_gen #where_clause {
+        type Output = #self_ty #ty_gen;
+
+        #[inline]
+        fn div(self, #param1: #self_ty #ty_gen) -> #self_ty #ty_gen {
+          #body
+        }
+      }
+    )
+  })?;
+  impl_store.push_impl({
+    let body = aux_body_impl.mult_inv_ref_body();
+    quote!(
+      impl #b_impl_gen ::core::ops::Div<&#b_ty> for #self_ty #ty_gen #b_where_clause {
+        type Output = #self_ty #ty_gen;
+
+        #[inline]
+        fn div(self, #param1: &#b_ty) -> #self_ty #ty_gen {
+          #body
+        }
+      }
+    )
+  })?;
+  impl_store.push_impl({
+    let body = aux_body_impl.ref_mult_inv_ref_body();
+    quote!(
+      impl #b_impl_gen ::core::ops::Div<&#b_ty> for &#self_ty #ty_gen #b_where_clause {
+        type Output = #self_ty #ty_gen;
+
+        #[inline]
+        fn div(self, #param1: &#b_ty) -> #self_ty #ty_gen {
+          #body
+        }
+      }
+    )
+  })?;
+
+  impl_store.push_impl({
+    let body = aux_body_impl.mult_assign_inv_body();
+    quote!(
+      impl #impl_gen ::core::ops::DivAssign<#self_ty #ty_gen> for #self_ty #ty_gen #where_clause {
+        #[inline]
+        fn div_assign(&mut self, #param1: #self_ty #ty_gen) {
+          #(#body);*
+        }
+      }
+    )
+  })?;
+  impl_store.push_impl({
+    let body = aux_body_impl.mult_assign_inv_ref_body();
+    quote!(
+      impl #b_impl_gen ::core::ops::DivAssign<&#b_ty> for #self_ty #ty_gen #b_where_clause {
+        #[inline]
+        fn div_assign(&mut self, #param1: &#b_ty) {
+          #(#body);*
+        }
+      }
+    )
+  })?;
+
+  impl_store.push_impl({
+    let body = aux_body_impl.inv_body();
+    quote!(
+      impl #impl_gen #inv_path for #self_ty #ty_gen #where_clause {
+        type Output = #self_ty #ty_gen;
+        
+        #[inline]
+        fn inv(self) -> #self_ty #ty_gen {
+          #body
+        }
+      }
+    )
+  })?;
+  impl_store.push_impl({
+    let body = aux_body_impl.ref_inv_body();
+    quote!(
+      impl #impl_gen #inv_path for &#self_ty #ty_gen #where_clause {
+        type Output = #self_ty #ty_gen;
+        
+        #[inline]
+        fn inv(self) -> #self_ty #ty_gen {
           #body
         }
       }
@@ -345,7 +485,7 @@ impl GroupAuxBody<'_> {
   pub fn list_elems(
     &self,
     f: impl Fn(Vec<syn::Expr>, syn::Type) -> Option<syn::Expr>,
-    access: LookupAccess,
+    accesses: impl IntoIterator<Item = LookupAccess>,
     f_unit: impl Fn(syn::Type) -> Option<syn::Expr>,
     default: Option<syn::Expr>
   ) -> Vec<syn::Expr> {
@@ -374,7 +514,7 @@ impl GroupAuxBody<'_> {
     };
     let mut res = self.lookup
       .clone()
-      .with_many(self.exprs, [access], full_f)
+      .with_many(self.exprs, accesses, full_f)
       .into_iter()
       .filter(|e| !eq_tokens(e, &dummy_expr))
       .collect::<Vec<_>>();
@@ -445,6 +585,177 @@ impl GroupAuxBody<'_> {
       Self::f_unit_default
     )
   }
+  pub fn ref_mult_ref_body(&self) -> syn::Expr {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> syn::Expr {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::ref_mult_ref(&#e0, #e1)),
+        None => parse_quote!(#e0.ref_mult_ref(#e1)),
+      }
+    }
+    self.body(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Borrow],
+      Self::f_unit_default
+    )
+  }
+
+  pub fn mult_assign_body(&self) -> Vec<syn::Expr> {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> Option<syn::Expr> {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      Some(match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::mult_assign(&mut #e0, #e1)),
+        None => parse_quote!(#e0.mult_assign(#e1)),
+      })
+    }
+    self.list_elems(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Own],
+      Self::f_unit_none,
+      parse_str("()").ok()
+    )
+  }
+  pub fn mult_assign_ref_body(&self) -> Vec<syn::Expr> {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> Option<syn::Expr> {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      Some(match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::mult_assign_ref(&mut #e0, #e1)),
+        None => parse_quote!(#e0.mult_assign_ref(#e1)),
+      })
+    }
+    self.list_elems(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Borrow],
+      Self::f_unit_none,
+      parse_str("()").ok()
+    )
+  }
+
+  pub fn mult_inv_body(&self) -> syn::Expr {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> syn::Expr {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::mult_inv(#e0, #e1)),
+        None => parse_quote!(#e0.mult_inv(#e1)),
+      }
+    }
+    self.body(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Own],
+      Self::f_unit_default
+    )
+  }
+  pub fn ref_mult_inv_body(&self) -> syn::Expr {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> syn::Expr {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::ref_mult_inv(&#e0, #e1)),
+        None => parse_quote!(#e0.ref_mult_inv(#e1)),
+      }
+    }
+    self.body(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Own],
+      Self::f_unit_default
+    )
+  }
+  pub fn mult_inv_ref_body(&self) -> syn::Expr {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> syn::Expr {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::mult_inv_ref(#e0, #e1)),
+        None => parse_quote!(#e0.mult_inv_ref(#e1)),
+      }
+    }
+    self.body(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Borrow],
+      Self::f_unit_default
+    )
+  }
+  pub fn ref_mult_inv_ref_body(&self) -> syn::Expr {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> syn::Expr {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::ref_mult_inv_ref(&#e0, #e1)),
+        None => parse_quote!(#e0.ref_mult_inv_ref(#e1)),
+      }
+    }
+    self.body(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Borrow],
+      Self::f_unit_default
+    )
+  }
+
+  pub fn mult_assign_inv_body(&self) -> Vec<syn::Expr> {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> Option<syn::Expr> {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      Some(match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::mult_assign_inv(&mut #e0, #e1)),
+        None => parse_quote!(#e0.mult_assign_inv(#e1)),
+      })
+    }
+    self.list_elems(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Own],
+      Self::f_unit_none,
+      parse_str("()").ok()
+    )
+  }
+  pub fn mult_assign_inv_ref_body(&self) -> Vec<syn::Expr> {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> Option<syn::Expr> {
+      let e0 = &es[0];
+      let e1 = &es[1];
+      Some(match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::mult_assign_inv_ref(&mut #e0, #e1)),
+        None => parse_quote!(#e0.mult_assign_inv_ref(#e1)),
+      })
+    }
+    self.list_elems(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own, LookupAccess::Borrow],
+      Self::f_unit_none,
+      parse_str("()").ok()
+    )
+  }
+
+  pub fn inv_body(&self) -> syn::Expr {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> syn::Expr {
+      let e = &es[0];
+      match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::inv(#e)),
+        None => parse_quote!(#e.inv()),
+      }
+    }
+    self.body(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own],
+      Self::f_unit_default,
+    )
+  }
+  pub fn ref_inv_body(&self) -> syn::Expr {
+    fn f(es: Vec<syn::Expr>, derive_gen: &Option<syn::Path>) -> syn::Expr {
+      let e = &es[0];
+      match derive_gen {
+        Some(gen_t) => parse_quote!(GenGroup::<#gen_t>::ref_inv(&#e)),
+        None => parse_quote!(#e.ref_inv()),
+      }
+    }
+    self.body(
+      |es, _| f(es, &self.derive_gen),
+      [LookupAccess::Own],
+      Self::f_unit_default,
+    )
+  }
 
   pub fn get_unit_body(&self) -> syn::Expr {
     fn f(ty: Type, derive_gen: &Option<syn::Path>) -> syn::Expr {
@@ -482,7 +793,7 @@ impl GroupAuxBody<'_> {
     }
     self.list_elems(
       |es, _| f(es, &self.derive_gen),
-      LookupAccess::Own,
+      [LookupAccess::Own],
       Self::f_unit_none,
       parse_str("true").ok()
     )
@@ -510,7 +821,7 @@ impl GroupAuxBody<'_> {
     }
     self.list_elems(
       |es, _| f(es, &self.derive_gen),
-      LookupAccess::Own,
+      [LookupAccess::Own],
       Self::f_unit_none,
       parse_str("()").ok()
     )

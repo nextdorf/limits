@@ -24,6 +24,10 @@ pub fn get_one_path(attrs: &Vec<Attribute>) -> Path {
   get_path(attrs, "one_path", "::tensor::One")
 }
 
+pub fn get_inv_path(attrs: &Vec<Attribute>) -> Path {
+  get_path(attrs, "inv_path", "::tensor::Inv")
+}
+
 pub fn get_derive_generic(attrs: &Vec<Attribute>) -> Option<Path> {
   get_opt_path(attrs, "derive_generic")
 }
