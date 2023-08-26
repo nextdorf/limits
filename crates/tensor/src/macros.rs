@@ -1,3 +1,13 @@
+pub use tensor_derive_new::{
+  wrapper_deref,
+  derive_generic,
+  inv_path,
+  one_path,
+  zero_path,
+  neg_path,
+  unit_types,
+};
+
 #[macro_export]
 /// Forward a method to an inherent method or a base trait method.
 macro_rules! forward {

@@ -1,28 +1,33 @@
 // pub mod cyclic;
 // pub mod permutation;
 
-use std::marker::PhantomData;
+use ::core::marker::PhantomData;
 
 use crate::{AbelGroupWrapper, GenAbelGroup, GenGroup, GroupWrapper, WrapperDeref};
+use crate::macros::{wrapper_deref, derive_generic};
 pub use num_traits::{Inv, One, Zero};
-use tensor_derive::{gen_group_path, num_traits_inv_path, num_traits_one_path, wrap_deref};
+
+// use tensor_derive_new::{gen_group_path, num_traits_inv_path, num_traits_one_path, wrap_deref};
 // pub use cyclic::Cyclic;
 // pub use permutation::Permutation;
 
-pub use tensor_derive::{
-  gen_abel_group_path,
-  num_traits_zero_path,
-  PlainAbelGroupWrapper,
-  PlainGroupWrapper,
+pub use crate::macros::{
+  inv_path,
+  one_path,
+  zero_path,
+  neg_path,
+  unit_types,
 };
 
 
 // #[derive(WrapperDeref, AbelGroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[derive(AbelGroupWrapper)]
-#[gen_abel_group_path(GenAbelGroup: GenGroup<NumAdd>)]
-#[num_traits_zero_path(Zero)]
-#[wrap_deref]
-pub struct AbelGroup<Kind, T: GenAbelGroup<Kind>>(pub T, PhantomData<Kind>);
+#[derive(AbelGroupWrapper, WrapperDeref)]
+#[unit_types(PhantomData<Kind>)]
+// #[derive_generic()]
+#[zero_path(Zero)]
+#[wrapper_deref]
+// pub struct AbelGroup<Kind, T>(pub T, PhantomData<Kind>) where T: GenAbelGroup<Kind>;
+pub struct AbelGroup<Kind, T>(pub i32, PhantomData<(T, Kind)>) where T: GenAbelGroup<Kind>;
 
 
 // #[derive(WrapperDeref, GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -36,10 +41,12 @@ pub struct AbelGroup<Kind, T: GenAbelGroup<Kind>>(pub T, PhantomData<Kind>);
 
 // #[derive(WrapperDeref, GroupWrapper, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 // #[derive(WrapperDeref)]
+/*
 #[gen_group_path(GenGroup)]
 #[num_traits_one_path(One)]
 #[num_traits_inv_path(Inv)]
 struct NGroup<const N:usize, T: GenGroup>(pub [T; N]);
+*/
 
 // struct NType(pub i32);
 // fn _qqq() -> [NType; 4] {

@@ -30,10 +30,15 @@ new_derive!(
   GroupWrapper using group from group
 );
 
+new_derive!(
+  AbelGroupWrapper using abel_group from group
+);
+
 
 marker_attribute!(zero_path);
 marker_attribute!(one_path);
 marker_attribute!(inv_path);
+marker_attribute!(neg_path);
 marker_attribute!(unit_types);
 marker_attribute!(derive_generic);
 

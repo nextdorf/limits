@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 tensor-traits = { path = "../tensor-traits"}
 tensor-derive-new = { path = "../tensor-derive-new"}
+rand = "*"
 
 

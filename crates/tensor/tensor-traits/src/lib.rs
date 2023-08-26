@@ -9,6 +9,7 @@ pub use group::{GenAbelGroup, GenGroup};
 // pub use vector_space::GenVectorSpace;
 
 pub use ::num_traits::{Zero, One, Inv};
+pub use ::core::ops::Neg;
 
 
 

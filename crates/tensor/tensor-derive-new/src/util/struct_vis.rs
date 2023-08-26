@@ -35,7 +35,7 @@ pub struct Lookup<'a> {
   pub ty: Type,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StructLookupPaths<'a> {
   pub kind: LookupKind,
   pub paths: Vec<Lookup<'a>>,
@@ -366,6 +366,12 @@ impl StructLookupPaths<'_> {
 
   // pub fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, access: LookupAccess, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Expr {
   pub fn with_many_and_collect(self, ident: &Ident, exprs: &Vec<Expr>, accesses: impl IntoIterator<Item = LookupAccess>, f: impl Fn(Vec<Expr>, Type) -> Expr) -> Expr {
+    // panic!("here {:?}", (
+    //   ident,
+    //   exprs.iter().map(|e| e.to_token_stream()).collect::<Vec<_>>(),
+    //   accesses.into_iter().collect::<Vec<_>>(),
+    // ));
+
     match self.kind {
       LookupKind::Named | LookupKind::Unnamed => {
         let map_fn = match self.kind {
@@ -392,6 +398,8 @@ impl StructLookupPaths<'_> {
 impl Lookup<'_> {
   pub fn with_access(self, expr: &Expr, access: LookupAccess) -> (Expr, Type) {
     let Self { path, ty } = self;
+    panic!("{}: {} at {} <- {:?}", expr.to_token_stream(), ty.to_token_stream(), path.to_token_stream(), access);
+    debug_assert!(!path.is_empty(), "Trying to access empty path for {}: {} <- {:?}", expr.to_token_stream(), ty.to_token_stream(), access);
     let expr_res = match access {
       LookupAccess::Own => parse_quote!(#expr.#path),
       LookupAccess::Ref => parse_quote!(&#expr.#path),
@@ -424,7 +432,11 @@ impl<'a, 'b> TryFrom<StructLookup<'a, 'b>> for StructLookupPaths<'a> {
 
   fn try_from(value: StructLookup<'a, 'b>) -> Result<Self, Self::Error> {
     match (value.current_path.is_empty(), value.kind) {
-      (true, Some(kind)) => Ok(Self { kind, paths: value.paths }),
+      (true, Some(kind)) => {
+        //TODO: paths must not be empty (I think)
+        // For some reason where clauses lead to empty paths
+        Ok(Self { kind, paths: value.paths })
+      },
       _ => Err(value)
     }
   }
@@ -473,13 +485,28 @@ impl ToTokens for MemberOf<'_> {
 }
 
 
+impl Debug for Lookup<'_> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("Lookup")
+      .field("path", &self.path.to_token_stream())
+      .field("ty", &self.ty.to_token_stream())
+      .finish()
+  }
+}
+
+
 #[cfg(test)]
 mod tests {
   use quote::{quote, ToTokens};
   use syn::{parse_quote, visit::Visit, Expr, parse_str, Type, TypePath, Path};
   use crate::util::{*, tests::{assert_eq_tokens, eq_tokens}};
 
-  fn test_fn(input: &syn::DeriveInput, exprs: impl IntoIterator<Item = &'static str>, access: LookupAccess, collect_fn: impl Fn(Vec<Expr>, Type) -> Expr) -> Expr {
+  fn test_fn(
+    input: &syn::DeriveInput, 
+    exprs: impl IntoIterator<Item = &'static str>, 
+    accesses: impl IntoIterator<Item = LookupAccess>, 
+    collect_fn: impl Fn(Vec<Expr>, Type) -> Expr
+  ) -> Expr {
     // Create the data structure which represents the input and allows for partial representation.
     // This means it's intended to be mutable and the content might be garbage until all visit_*
     // functions are called.
@@ -495,7 +522,7 @@ mod tests {
 
     let exprs = exprs.into_iter().map(|s| parse_str(s).unwrap()).collect();
     // let none_fn = if false {Some(|_| parse_quote!(add_with()))} else {None};
-    lookup.with_many_and_collect(&input.ident, &exprs, [access], collect_fn)
+    lookup.with_many_and_collect(&input.ident, &exprs, accesses, collect_fn)
   }
  
 
@@ -509,8 +536,9 @@ mod tests {
       }
     );
     let exprs = ["u", "v"];
+    let accesses = exprs.clone().map(|_| LookupAccess::Ref);
     let collect_fn = |es: Vec<_>, _| parse_quote!(#(#es)+*);
-    let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
+    let res = test_fn(&input, exprs, accesses, collect_fn);
 
     let target = quote!(
       X {
@@ -532,8 +560,9 @@ mod tests {
       );
     );
     let exprs = ["u", "v"];
+    let accesses = exprs.clone().map(|_| LookupAccess::Ref);
     let collect_fn = |es: Vec<_>, _| parse_quote!(#(#es)+*);
-    let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
+    let res = test_fn(&input, exprs, accesses, collect_fn);
 
     let target = quote!(
       X (
@@ -554,6 +583,7 @@ mod tests {
       }
     );
     let exprs = ["u", "v"];
+    let accesses = exprs.clone().map(|_| LookupAccess::Ref);
     let phantom_data: (_, Expr) = (|p: &Path| -> bool {
         if p.segments.len() == 1 {
           let p = p.segments.first().unwrap();
@@ -573,7 +603,7 @@ mod tests {
         _ => parse_quote!(#(#es)+*)
       }
     };
-    let res = test_fn(&input, exprs, LookupAccess::Ref, collect_fn);
+    let res = test_fn(&input, exprs, accesses, collect_fn);
 
     let target = quote!(
       X {

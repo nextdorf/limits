@@ -28,6 +28,10 @@ pub fn get_inv_path(attrs: &Vec<Attribute>) -> Path {
   get_path(attrs, "inv_path", "::tensor::Inv")
 }
 
+pub fn get_neg_path(attrs: &Vec<Attribute>) -> Path {
+  get_path(attrs, "neg_path", "::core::ops::Neg")
+}
+
 pub fn get_derive_generic(attrs: &Vec<Attribute>) -> Option<Path> {
   get_opt_path(attrs, "derive_generic")
 }

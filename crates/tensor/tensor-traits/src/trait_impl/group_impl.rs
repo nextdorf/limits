@@ -7,25 +7,89 @@ use crate::{
 macro_rules! gen_abelian_group_impl {
   ($u:ty: $($t:ty)*) => ($(
     impl GenGroup<$u> for $t {
+      #[inline]
       fn mult(self, rhs: Self) -> Self { self + rhs }
+      #[inline]
       fn mult_ref(self, rhs: &Self) -> Self { self + rhs }
+      #[inline]
       fn ref_mult(&self, rhs: Self) -> Self { self + rhs }
+      #[inline]
       fn ref_mult_ref(&self, rhs: &Self) -> Self { self + rhs }
+      #[inline]
       fn mult_assign(&mut self, rhs: Self) { *self += rhs }
+      #[inline]
       fn mult_assign_ref(&mut self, rhs: &Self) { *self += rhs }
-    
+      
+      #[inline]
       fn mult_inv(self, rhs: Self) -> Self { self - rhs }
+      #[inline]
       fn mult_inv_ref(self, rhs: &Self) -> Self { self - rhs }
+      #[inline]
       fn ref_mult_inv(&self, rhs: Self) -> Self { self - rhs }
+      #[inline]
       fn ref_mult_inv_ref(&self, rhs: &Self) -> Self { self - rhs }
+      #[inline]
       fn mult_assign_inv(&mut self, rhs: Self) { *self -= rhs }
+      #[inline]
       fn mult_assign_inv_ref(&mut self, rhs: &Self) { *self -= rhs }
-    
+
+      #[inline]
       fn inv(self) -> Self { -self }
+      #[inline]
       fn ref_inv(&self) -> Self { -self }
-    
+
+      #[inline]
       fn unit() -> Self { num_traits::zero() }
+      #[inline]
       fn is_unit(&self) -> bool { num_traits::Zero::is_zero(self) }
+      #[inline]
+      fn set_unit(&mut self) { num_traits::Zero::set_zero(self) }
+    }
+
+    impl GenAbelGroup<$u> for $t {}
+  )*)
+}
+
+#[macro_export]
+macro_rules! gen_abelian_mod_group_impl {
+  ($u:ty: $($t:ty)*) => ($(
+    impl GenGroup<$u> for $t {
+      #[inline]
+      fn mult(self, rhs: Self) -> Self { self.wrapping_add(rhs) }
+      #[inline]
+      fn mult_ref(self, rhs: &Self) -> Self { self.wrapping_add(*rhs) }
+      #[inline]
+      fn ref_mult(&self, rhs: Self) -> Self { self.wrapping_add(rhs) }
+      #[inline]
+      fn ref_mult_ref(&self, rhs: &Self) -> Self { self.wrapping_add(*rhs) }
+      #[inline]
+      fn mult_assign(&mut self, rhs: Self) { *self = self.wrapping_add(rhs) }
+      #[inline]
+      fn mult_assign_ref(&mut self, rhs: &Self) { *self = self.wrapping_add(*rhs) }
+    
+      #[inline]
+      fn mult_inv(self, rhs: Self) -> Self { self.wrapping_sub(rhs) }
+      #[inline]
+      fn mult_inv_ref(self, rhs: &Self) -> Self { self.wrapping_sub(*rhs) }
+      #[inline]
+      fn ref_mult_inv(&self, rhs: Self) -> Self { self.wrapping_sub(rhs) }
+      #[inline]
+      fn ref_mult_inv_ref(&self, rhs: &Self) -> Self { self.wrapping_sub(*rhs) }
+      #[inline]
+      fn mult_assign_inv(&mut self, rhs: Self) { *self = self.wrapping_sub(rhs) }
+      #[inline]
+      fn mult_assign_inv_ref(&mut self, rhs: &Self) { *self = self.wrapping_sub(*rhs) }
+    
+      #[inline]
+      fn inv(self) -> Self { self.wrapping_neg() }
+      #[inline]
+      fn ref_inv(&self) -> Self { self.wrapping_neg() }
+    
+      #[inline]
+      fn unit() -> Self { num_traits::zero() }
+      #[inline]
+      fn is_unit(&self) -> bool { num_traits::Zero::is_zero(self) }
+      #[inline]
       fn set_unit(&mut self) { num_traits::Zero::set_zero(self) }
     }
 
@@ -37,25 +101,42 @@ macro_rules! gen_abelian_group_impl {
 macro_rules! gen_mul_group_impl {
   ($u:ty: $($t:ty)*) => ($(
     impl GenGroup<$u> for $t {
+      #[inline]
       fn mult(self, rhs: Self) -> Self { self * rhs }
+      #[inline]
       fn mult_ref(self, rhs: &Self) -> Self { self * rhs }
+      #[inline]
       fn ref_mult(&self, rhs: Self) -> Self { self * rhs }
+      #[inline]
       fn ref_mult_ref(&self, rhs: &Self) -> Self { self * rhs }
+      #[inline]
       fn mult_assign(&mut self, rhs: Self) { *self *= rhs }
+      #[inline]
       fn mult_assign_ref(&mut self, rhs: &Self) { *self *= rhs }
-    
+      
+      #[inline]
       fn mult_inv(self, rhs: Self) -> Self { self / rhs }
+      #[inline]
       fn mult_inv_ref(self, rhs: &Self) -> Self { self / rhs }
+      #[inline]
       fn ref_mult_inv(&self, rhs: Self) -> Self { self / rhs }
+      #[inline]
       fn ref_mult_inv_ref(&self, rhs: &Self) -> Self { self / rhs }
+      #[inline]
       fn mult_assign_inv(&mut self, rhs: Self) { *self /= rhs }
+      #[inline]
       fn mult_assign_inv_ref(&mut self, rhs: &Self) { *self /= rhs }
-    
+      
+      #[inline]
       fn inv(self) -> Self { num_traits::Inv::inv(self) }
+      #[inline]
       fn ref_inv(&self) -> Self { num_traits::Inv::inv(self) }
-    
+      
+      #[inline]
       fn unit() -> Self { num_traits::one() }
+      #[inline]
       fn is_unit(&self) -> bool { num_traits::One::is_one(self) }
+      #[inline]
       fn set_unit(&mut self) { num_traits::One::set_one(self) }
     }
   )*)
@@ -138,7 +219,8 @@ macro_rules! unit_group_impl {
 }
 
 
-gen_abelian_group_impl! { NumAdd: i8 i16 i32 i64 i128 f32 f64 }
+gen_abelian_mod_group_impl! { NumAdd: i8 i16 i32 i64 i128 }
+gen_abelian_group_impl! { NumAdd: f32 f64 }
 gen_mul_group_impl! { NumMul: f32 f64 }
 
 // unit_group_impl! {(): ::core::marker::PhantomData<()>}

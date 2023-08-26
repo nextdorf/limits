@@ -1,4 +1,4 @@
-// mod macros;
+pub mod macros;
 // pub mod num_field;
 // pub mod vector_space;
 pub mod group;
@@ -10,7 +10,7 @@ pub mod group;
 pub use tensor_traits::{GenAbelGroup, GenGroup};
 
 
-pub use tensor_derive::{WrapperDeref, AbelGroupWrapper, GroupWrapper};
+pub use tensor_derive_new::{WrapperDeref, AbelGroupWrapper, GroupWrapper};
 
 // trait 
 

@@ -1,30 +1,22 @@
-use std::marker::PhantomData;
+mod trait_impl;
+mod test_abel_g_is_abelian;
+
+use ::core::marker::PhantomData;
+#[allow(unused_imports)]
 use tensor_traits::{Zero, One, Inv, GenGroup, num_field::NumAdd};
 pub use tensor_derive_new::*;
-
-// #[derive(WrapperDeref)]
-// #[wrapper_deref(value)]
-// pub struct A<T> {
-//   internal: PhantomData<T>,
-//   pub value: u32,
-// }
+pub use trait_impl::SomeUnit;
 
 
-
-// #[derive(WrapperDeref)]
-// #[wrapper_deref]
-// pub struct B(pub (), pub u32);
-
-
-struct SomeUnit;
-
-#[derive(GroupWrapper)]
+#[derive(AbelGroupWrapper)]
 #[unit_types(PhantomData<T>, SomeUnit)]
 // #[derive_generic(NumAdd)]
 #[zero_path(Zero)]
 #[one_path(One)]
 #[inv_path(Inv)]
 
-pub struct G<T>(pub i32, i8, PhantomData<T>, SomeUnit);
+pub struct AbelG<T>(pub i32, i8, PhantomData<T>, SomeUnit);
 // pub struct G(pub i32, i8, ());
+
+
 
